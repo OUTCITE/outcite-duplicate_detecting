@@ -12,6 +12,8 @@ from common import *
 _index            = 'references'; #'geocite' #'ssoar'
 _out_index        = 'duplicates';
 
+_priority = ['sowiport','crossref','dnb','openalex','bing'];
+
 SEPS = re.compile(r'[^A-Za-zßäöü]');
 WORD = re.compile(r'[A-Za-zßäöü]{2,}');
 YEAR = date.today().year;
@@ -105,6 +107,15 @@ def majority_vote_(references,fields):
     #freqs = Counter(values);
     return max(values,key=values.count) if len(values) > 0 else tuple([None for field in fields]);
 
+def best_url(references):
+    url  = None;
+    urls = {target_collection:[reference[target_collection+'_url'] for reference in references if target_collection+'_url' in reference and reference[target_collection+'_url']] for target_collection in _priority}
+    maxs = {target_collection:max(urls[target_collection],key=urls[target_collection].count) for target_collection in urls if urls[target_collection]};
+    for target_collection in _priority:
+        if target_collection in maxs:
+            return target_collection, maxs[target_collection];
+    return None, None
+
 def consolidate_references(index,duplicateIDs=[]):
     duplicateIDs = duplicateIDs if duplicateIDs else get_distinct('duplicate_id.keyword',index);
     for duplicateID, size in duplicateIDs:
@@ -120,8 +131,9 @@ def consolidate_references(index,duplicateIDs=[]):
         authors                     = best_representative(references,'authors'   ,0.30); #TODO: This should never become null
         editors                     = best_representative(references,'editors'   ,0.30);
         publishers                  = best_representative(references,'publishers',0.30);
+        target_collection, url      = best_url(references);
         reference_new               = {};
-        for field,value in [('id',duplicateID),('reference',refstring),('volume',volume),('issue',issue),('year',year),('start',start),('end',end),('title',title),('source',source),('place',place),('authors',authors),('editors',editors),('publishers',publishers)]:
+        for field,value in [('id',duplicateID),('toCollection',target_collection),('toID',url),('reference',refstring),('volume',volume),('issue',issue),('year',year),('start',start),('end',end),('title',title),('source',source),('place',place),('authors',authors),('editors',editors),('publishers',publishers)]:
             reference_new[field] = value;
         reference_new['ids'] = [reference['id'] for reference in references];
         yield duplicateID,reference_new;

@@ -57,7 +57,7 @@ def evaluate(auto_labelling,gold_labelling,thrs=[None],addvals=[]):
 def update_references(index,fromField,toField,label_func,featyp,ngrams_n,args,KEY=False):#similarities,thresholds,XF_type,FF_type,FX_type):
     body = { '_op_type': 'update', '_index': index, '_id': None, '_source': { 'doc': { 'has_'+toField: True, toField: None } } };
     for ID, size in get_distinct(fromField+['','.keyword'][KEY],index):
-        if size < 2 or size > 25000:
+        if size < 1 or size > 25000:
             continue;
         M, refs, featsOf = get_matrix(index,fromField,ID,featyp,ngrams_n);
         labellings       = label_func(*([M,refs,featsOf]+args));#,similarities,thresholds,XF_type,FF_type,FX_type);
