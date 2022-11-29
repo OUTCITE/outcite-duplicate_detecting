@@ -3,6 +3,7 @@ import sys
 import time
 import re
 import sqlite3
+import itertools
 from collections import Counter
 from copy import deepcopy as copy
 from elasticsearch import Elasticsearch as ES
@@ -25,15 +26,16 @@ _DBSCAN = False;
 #-------------------------------------------------------------------------------------------------------------------------------------------------
 #-FUNCTIONS---------------------------------------------------------------------------------------------------------------------------------------
 
-def goldlabels(ids,labelling,mention2goldID,REP=False):
-    if isinstance(mention2goldID,str):
-        con            = sqlite3.connect(mention2goldID);
-        cur            = con.cursor();
-        mention2goldID = {mentionID:goldID for mentionID,goldID in cur.execute("SELECT mentionID,"+['goldID','repID'][REP]+" FROM mentions WHERE goldID IS NOT NULL")};
-        con.close();
-    gold_labelling = [mention2goldID[mentionID] for mentionID in ids if mentionID in mention2goldID];
+def goldlabels(ids,DB_file,REP=False):
+    con            = sqlite3.connect(DB_file);
+    cur            = con.cursor();
+    mention2goldID = {mentionID:goldID for mentionID,goldID in cur.execute("SELECT mentionID,"+['goldID','repID'][REP]+" FROM mentions WHERE goldID IS NOT NULL")};
+    gold_labelling = [mention2goldID[mentionID] for mentionID in ids if mentionID in mention2goldID]; con.close();
+    return gold_labelling, mention2goldID;
+
+def autolabels(ids,mention2goldID,labelling):
     auto_labelling = [labelling[i] for i in range(len(ids)) if ids[i] in mention2goldID];
-    return auto_labelling, gold_labelling, mention2goldID;
+    return auto_labelling;
 
 def evaluate(auto_labelling,gold_labelling,thrs=[None],addvals=[]):
     precs, recs = [],[];
@@ -51,7 +53,7 @@ def evaluate(auto_labelling,gold_labelling,thrs=[None],addvals=[]):
         precs.append(round(100*TP/P) if P>0 else 0); recs.append(round(100*TP/T) if T>0 else 0);
     avg_prec = 0 if len(precs)==0 else sum(precs)/len(precs);
     avg_rec  = 0 if len(recs) ==0 else sum(recs)/len(recs);
-    return addvals + [val for pair in zip(precs,recs) for val in pair] + [avg_prec,avg_rec,0 if avg_prec+avg_rec==0 else (2*avg_prec*avg_rec)/(avg_prec+avg_rec)];
+    return addvals + [val for pair in zip(precs,recs) for val in pair] + [avg_prec,avg_rec,0 if avg_prec+avg_rec==0 else round((2*avg_prec*avg_rec)/(avg_prec+avg_rec))];
     #print('max_gold:',thr,'avg/med auto cluster:',avg_size_auto,'/',med_size_auto,'avg/med gold cluster:',avg_size_gold,'/',med_size_gold,'---- T:',T,'P:',P,'TP:',TP,'---- Pre:',round(100*TP/P),'Rec:',round(100*TP/T));
 
 def update_references(index,fromField,toField,label_func,featyp,ngrams_n,args,KEY=False):#similarities,thresholds,XF_type,FF_type,FX_type):
@@ -59,14 +61,17 @@ def update_references(index,fromField,toField,label_func,featyp,ngrams_n,args,KE
     for ID, size in get_distinct(fromField+['','.keyword'][KEY],index):
         if size < 1 or size > 25000:
             continue;
-        M, refs, featsOf = get_matrix(index,fromField,ID,featyp,ngrams_n);
-        labellings       = label_func(*([M,refs,featsOf]+args));#,similarities,thresholds,XF_type,FF_type,FX_type);
-        labelling        = labellings[0]; # If we wanted to use the dois, we could choose an optimal labelling
+        M, refs, featsOf, index2feat, feat2index = get_matrix(index,fromField,ID,featyp,ngrams_n);
+        labellings                               = label_func(*([M,refs,index2feat]+args));#,similarities,thresholds,XF_type,FF_type,FX_type);
+        labelling                                = labellings[0]; # If we wanted to use the dois, we could choose an optimal labelling
         for i in range(len(refs)):
             body                            = copy(body);
             body['_id']                     = refs[i]['id'];
             body['_source']['doc'][toField] = str(refs[i][fromField])+'_'+str(labelling[i]);
             yield body;
+
+#M,refs,index2feat,similarities,thresholds,XF_type,FF_type,FX_type,field2ftype,fweight,bias,gold_labelling=None
+
 '''
 def update_references(index,fromField,toField,label_func):
     body       = { '_op_type': 'update', '_index': index, '_id': None, '_source': { 'doc': { 'has_'+toField: True, toField: None } } };
@@ -83,6 +88,29 @@ def update_references(index,fromField,toField,label_func):
             body['_source']['doc'][toField] = str(refs[i][fromField])+'_'+str(labelling[i]);
             yield body;
 '''
+
+def display(refs,featsOf,labelling,threshold,FEATS=False):
+    table     = [(refs[i],featsOf[i],labelling[i],) for i in range(len(labelling))];
+    histogram = Counter(labelling);
+    for label in histogram:
+        if histogram[label] > threshold:
+            for row in table:
+                if row[2]==label:
+                    features = dict();
+                    for ftype,fval in row[1]:
+                        if ftype in features:
+                            features[ftype].add(fval);
+                        else:
+                            features[ftype] = set([fval]);
+                    if FEATS:
+                        print('----------------------------------------------------------------------------------------------------------------------------------------------------------\n',row[0]['reference'],'\n----------------------------------------------------------------------------------------------------------------------------------------------------------');
+                        for ftype in features:
+                            if features[ftype] != set([None]):
+                                print('    ',ftype.upper()+':','/'.join((str(fval) for fval in features[ftype]))[:150]);
+                    else:
+                        print('--->', row[0]['reference']);
+            input('________________________________________________________________________________________________________________________________________________________________________');
+
 def get_distinct(field,index):
     #----------------------------------------------------------------------------------------------------------------------------------
     query = { "exists": {"field": field} };
@@ -137,22 +165,22 @@ def get_features(reference):
     year       = reference['year']   if 'year'   in reference and isinstance(reference['year'],  int) else None;
     source     = reference['source'] if 'source' in reference and isinstance(reference['source'],str) else None;
     title      = reference['title']  if 'title'  in reference and isinstance(reference['title'], str) else None;
-    a1sur      = reference['authors'][0]['surname'] if 'authors' in reference and len(reference['authors']) > 0 and 'surname' in reference['authors'][0] and isinstance(reference['authors'][0]['surname'],str) else None;
+    a1sur      = reference['authors'][0]['surname'] if 'authors' in reference and isinstance(reference['authors'],list) and len(reference['authors']) > 0 and 'surname' in reference['authors'][0] and isinstance(reference['authors'][0]['surname'],str) else None;
     a1init     = a1sur+'_'+reference['authors'][0]['initials'][0]   if a1sur and 'initials'   in reference['authors'][0] and len(reference['authors'][0]['initials'])>0   and isinstance(reference['authors'][0]['initials'][0]  ,str) else None;
     a1first    = a1sur+'_'+reference['authors'][0]['firstnames'][0] if a1sur and 'firstnames' in reference['authors'][0] and len(reference['authors'][0]['firstnames'])>0 and isinstance(reference['authors'][0]['firstnames'][0],str) else None;
-    a2sur      = reference['authors'][1]['surname'] if 'authors' in reference and len(reference['authors']) > 1 and 'surname' in reference['authors'][1] and isinstance(reference['authors'][1]['surname'],str) else None;
+    a2sur      = reference['authors'][1]['surname'] if 'authors' in reference and isinstance(reference['authors'],list) and len(reference['authors']) > 1 and 'surname' in reference['authors'][1] and isinstance(reference['authors'][1]['surname'],str) else None;
     a2init     = a2sur+'_'+reference['authors'][1]['initials'][0]   if a2sur and 'initials'   in reference['authors'][1] and len(reference['authors'][1]['initials'])>0   and isinstance(reference['authors'][1]['initials'][0]  ,str) else None;
     a2first    = a2sur+'_'+reference['authors'][1]['firstnames'][0] if a2sur and 'firstnames' in reference['authors'][1] and len(reference['authors'][1]['firstnames'])>0 and isinstance(reference['authors'][1]['firstnames'][0],str) else None;
-    a3sur      = reference['authors'][2]['surname'] if 'authors' in reference and len(reference['authors']) > 2 and 'surname' in reference['authors'][2] and isinstance(reference['authors'][2]['surname'],str) else None;
+    a3sur      = reference['authors'][2]['surname'] if 'authors' in reference and isinstance(reference['authors'],list) and len(reference['authors']) > 2 and 'surname' in reference['authors'][2] and isinstance(reference['authors'][2]['surname'],str) else None;
     a3init     = a3sur+'_'+reference['authors'][2]['initials'][0]   if a3sur and 'initials'   in reference['authors'][2] and len(reference['authors'][2]['initials'])>0   and isinstance(reference['authors'][2]['initials'][0]  ,str) else None;
     a3first    = a3sur+'_'+reference['authors'][2]['firstnames'][0] if a3sur and 'firstnames' in reference['authors'][2] and len(reference['authors'][2]['firstnames'])>0 and isinstance(reference['authors'][2]['firstnames'][0],str) else None;
-    a4sur      = reference['authors'][3]['surname'] if 'authors' in reference and len(reference['authors']) > 3 and 'surname' in reference['authors'][3] and isinstance(reference['authors'][3]['surname'],str) else None;
+    a4sur      = reference['authors'][3]['surname'] if 'authors' in reference and isinstance(reference['authors'],list) and len(reference['authors']) > 3 and 'surname' in reference['authors'][3] and isinstance(reference['authors'][3]['surname'],str) else None;
     a4init     = a4sur+'_'+reference['authors'][3]['initials'][0]   if a4sur and 'initials'   in reference['authors'][3] and len(reference['authors'][3]['initials'])>0   and isinstance(reference['authors'][3]['initials'][0]  ,str) else None;
     a4first    = a4sur+'_'+reference['authors'][3]['firstnames'][0] if a4sur and 'firstnames' in reference['authors'][3] and len(reference['authors'][3]['firstnames'])>0 and isinstance(reference['authors'][3]['firstnames'][0],str) else None;
-    e1sur      = reference['editors'][0]['surname'] if 'editors' in reference and len(reference['editors']) > 0 and 'surname' in reference['editors'][0] and isinstance(reference['editors'][0]['surname'],str) else None;
+    e1sur      = reference['editors'][0]['surname'] if 'editors' in reference and isinstance(reference['editors'],list) and len(reference['editors']) > 0 and 'surname' in reference['editors'][0] and isinstance(reference['editors'][0]['surname'],str) else None;
     e1init     = e1sur+'_'+reference['editors'][0]['initials'][0]   if e1sur and 'initials'   in reference['editors'][0] and len(reference['editors'][0]['initials'])>0   and isinstance(reference['editors'][0]['initials'][0]  ,str) else None;
     e1first    = e1sur+'_'+reference['editors'][0]['firstnames'][0] if e1sur and 'firstnames' in reference['editors'][0] and len(reference['editors'][0]['firstnames'])>0 and isinstance(reference['editors'][0]['firstnames'][0],str) else None;
-    publisher1 = reference['publishers'][0]['publisher_string'] if 'publishers' in reference and len(reference['publishers']) > 0 and 'publisher_string' in reference['publishers'][0] and isinstance(reference['publishers'][0]['publisher_string'],str) else None;
+    publisher1 = reference['publishers'][0]['publisher_string'] if 'publishers' in reference and isinstance(reference['publishers'],list) and len(reference['publishers']) > 0 and 'publisher_string' in reference['publishers'][0] and isinstance(reference['publishers'][0]['publisher_string'],str) else None;
     return refstring,sowiportID,crossrefID,dnbID,openalexID,issue,volume,year,source,title,a1sur,a1init,a1first,a2sur,a2init,a2first,a3sur,a3init,a3first,a4sur,a4init,a4first,e1sur,e1init,e1first,publisher1;
 
 def get_ngrams(string,n):
@@ -177,37 +205,39 @@ def get_wordgrams(string,n):
         return [];
     if isinstance(string,int):
         return [string];
-    affix  = ''.join([' strbrdr ' for j in range(n-1)]);
+    affix  = ''.join([' ### ' for j in range(n-1)]);
     string = (affix + string + affix).lower();
     words  = get_words(string);
     return ['_'.join(words[i:i+n]) for i in range(len(words)-(n-1))];
 
-def process_features(ftypes,feats,typ=None,n=None): #TODO: Add here different preprocessing ways for features
+def process_features(ftypes,feats,types=None,n=None): #TODO: Add here different preprocessing ways for features depending on ftype
     ftypes_, feats_ = [],[];
     for i in range(len(feats)):
-        additional_feats = get_ngrams(feats[i],n) if typ=='ngrams' else get_words(feats[i]) if typ=='words' else get_wordgrams(feats[i],n) if typ=='wordgrams' else [feats[i]];
+        if types[ftypes[i]]==False:
+            continue;
+        additional_feats = get_ngrams(feats[i],n) if types[ftypes[i]]=='ngrams' else get_words(feats[i]) if types[ftypes[i]]=='words' else get_wordgrams(feats[i],n) if types[ftypes[i]]=='wordgrams' else [feats[i]];
         feats_          += additional_feats;
         ftypes_         += [ftypes[i] for j in range(len(additional_feats))];
     return set([(ftypes_[j],feats_[j],) for j in range(len(ftypes_))]);
 
-def get_matrix(index,field,ID,featyp=None,n=None):
+def get_matrix(index,field,ID,featypes=None,n=None):
     index2ftype = ['refstring','sowiportID','crossrefID','dnbID','openalexID','issue','volume','year','source','title','a1sur','a1init','a1first','a2sur','a2init','a2first','a3sur','a3init','a3first','a4sur','a4init','a4first','e1sur','e1init','e1first','publisher1'];
     ftype2index = {index2ftype[i]:i for i in range(len(index2ftype))};
     references  = [reference for reference in get_by_fieldvalue(field,ID,index)];
     doc2feats   = [get_features(reference) for reference in references];
-    featsOf     = [process_features(index2ftype,features,featyp,n) for features in doc2feats];
-    index2feats = list(set([]).union(*featsOf));
-    feat2index  = {index2feats[i]:i for i in range(len(index2feats))};
+    featsOf     = [process_features(index2ftype,features,featypes,n) for features in doc2feats];
+    index2feat  = list(set([]).union(*featsOf));
+    feat2index  = {index2feat[i]:i for i in range(len(index2feat))};
     indexfeats  = [(i,feat2index[feat],) for i in range(len(featsOf)) for feat in featsOf[i]];
     rows, cols  = zip(*indexfeats);
-    M           = csr((np.ones(len(rows),dtype=bool),(rows,cols)),shape=(len(doc2feats),len(index2feats)));
-    M           = M[:,np.ravel(M.sum(0)>1)]; # Remove all features that occur only once #TODO: This is not necessarily a good idea as it removes information about original set size
-    return M,references,featsOf;
+    M           = csr((np.ones(len(rows),dtype=bool),(rows,cols)),shape=(len(doc2feats),len(index2feat)));
+    #M           = M[:,np.ravel(M.sum(0)>1)]; # Remove all features that occur only once #TODO: This is not necessarily a good idea as it removes information about original set size
+    return M,references,featsOf,index2feat,feat2index;
 
 def cosim(DOT):
     NORMS = np.sqrt(DOT.diagonal());
     DENOM = diags(1/NORMS);
-    return DOT.dot(DENOM).dot(DENOM.T);
+    return DOT.dot(DENOM).dot(DENOM.T).sorted_indices();
 
 def jaccard(DOT,SIZES=None,nzrows=None,nzcols=None):
     SIZES          = DOT.diagonal() if SIZES is None else SIZES;
@@ -215,24 +245,24 @@ def jaccard(DOT,SIZES=None,nzrows=None,nzcols=None):
     JACCARD        = -DOT.copy();
     JACCARD.data  += SIZES[nzrows] + SIZES[nzcols];
     JACCARD.data   = DOT.data/JACCARD.data;
-    return JACCARD;
+    return JACCARD.sorted_indices();
 
 def f1(DOT,SIZES=None,nzrows=None,nzcols=None):
     SIZES          = DOT.diagonal() if SIZES is None else SIZES;
     nzrows, nzcols = DOT.nonzero() if nzrows is None else [nzrows, nzcols];
     F1             = DOT.copy();
     F1.data        = (F1.data*2) / (SIZES[nzrows] + SIZES[nzcols]);
-    return F1;
+    return F1.sorted_indices();
 
 def overlap(DOT,SIZES=None,nzrows=None,nzcols=None):
     SIZES          = DOT.diagonal() if SIZES is None else SIZES;
     nzrows, nzcols = DOT.nonzero() if nzrows is None else [nzrows, nzcols];
     OVERLAP        = DOT.copy();
     OVERLAP.data   = OVERLAP.data / np.minimum(SIZES[nzrows],SIZES[nzcols]);
-    return OVERLAP;
+    return OVERLAP.sorted_indices();
 
 def probability(XF,FF,FX):
-    return XF.dot(FF).dot(FX);
+    return XF.dot(FF).dot(FX).sorted_indices();
 
 def getFF(M,thr=None):
     x_vec, f_vec         = M.sum(1), M.sum(0);
@@ -247,7 +277,79 @@ def getFF(M,thr=None):
     FF.data[FF.data<thr] = 0; FF.eliminate_zeros();
     return XF,FF,FX;
 
-def get_clusters(M,refs,featsOf,similarities,thresholds,XF_type,FF_type,FX_type):
+def get_clusters(M,refs,index2feat,similarities,thresholds,XF_type,FF_type,FX_type,field2ftype,fweight,bias,gold_labelling=None):
+    XF,FF,FX  = getFF(M,None) if FF_type=='PROB' else getFF(M,0.5) if FF_type=='PROB_thr' else [None,csr((np.ones(M.shape[1]),(np.arange(M.shape[1]),np.arange(M.shape[1]))),dtype=int),None];
+    XF        = XF if XF_type=='PROB' else M;
+    FX        = FX if FX_type=='PROB' else M.T;
+    ftype_ind = dict();
+    for index in range(len(index2feat)):
+        field = index2feat[index][0];
+        ftype = field2ftype[field];
+        if ftype in ftype_ind:
+            ftype_ind[ftype].append(index);
+        else:
+            ftype_ind[ftype] = [index];
+    labellings = [];
+    for i in range(len(similarities)):
+        SIM_all = None;
+        samples = [] if not gold_labelling else get_samples(gold_labelling);
+        for ftype in ftype_ind:
+            print(ftype,XF.shape,FF.shape,FX.shape,len(index2feat),M.shape);
+            DOT            = XF[:,ftype_ind[ftype]].dot(FF[ftype_ind[ftype],:][:,ftype_ind[ftype]]).dot(FX[ftype_ind[ftype],:]).sorted_indices();# if FF_type else XF.dot(FX).sorted_indices();
+            SIZES          = DOT.diagonal();
+            nzrows, nzcols = DOT.nonzero();
+            SIM            = DOT if similarities[i]=='probability' else cosim(DOT) if similarities[i]=='cosim' else jaccard(DOT,SIZES,nzrows,nzcols) if similarities[i]=='jaccard' else f1(DOT,SIZES,nzrows,nzcols) if similarities[i]=='f1' else overlap(DOT,SIZES,nzrows,nzcols);
+            checksum       = SIM.sum() if similarities[i]=='probability' else SIM.diagonal().sum();
+            for j in range(len(samples)):
+                m1,m2,equiv,_  = samples[j];
+                samples[j][-1][ftype] = SIM[m1,m2];
+            SIM.data *= fweight[ftype];
+            SIM_all   = SIM.copy() if SIM_all==None else SIM_all + SIM;
+        #print(SIM.shape,SIM.nnz,SIM.shape[0]*SIM.shape[1])
+        SIM_all.data += bias;                          # Logistic Combination # The zero cells are not biased, but their result would be below threshold anyway
+        SIM_all.data  = 1/(1 + np.exp(-SIM_all.data)); # Logistic Combination
+        for j in range(len(samples)):
+            m1,m2,equiv,_  = samples[j];
+            samples[j][-1]['all'] = SIM_all[m1,m2];
+        for threshold in thresholds[i]:
+            EQUIV           = SIM_all > threshold; print(EQUIV.sum(),'equivalent pairs before transitive closure');
+            n_comps, labels = components(csgraph=EQUIV, directed=False, return_labels=True);
+            compsize        = Counter(labels); print(sum(compsize[label]**2 for label in compsize),'after transitive closure');
+            print( similarities[i], threshold, len(labels), max(labels)+1 ),
+            labellings.append(labels);
+    return labellings,samples;
+
+def get_samples(gold_labelling,max_equivs_per_gold_label=1000,max_equivs=10000,max_diffs_per_gold_pair=10,max_diffs=10000):
+    goldlabel2mentionindex = dict();
+    for i in range(len(gold_labelling)):
+        if gold_labelling[i] in goldlabel2mentionindex:
+            goldlabel2mentionindex[gold_labelling[i]].append(i);
+        else:
+            goldlabel2mentionindex[gold_labelling[i]] = [i];
+    equivalents = [];
+    for goldlabel in goldlabel2mentionindex:
+        equivalents_ = [];
+        for m1,m2 in itertools.combinations(goldlabel2mentionindex[goldlabel],2):
+            equivalents_.append((m1,m2));
+            if len(equivalents_) >= max_equivs_per_gold_label:
+                break;
+        equivalents += equivalents_;
+        if len(equivalents) >= max_equivs:
+            break;
+    differents  = [];
+    for g1,g2 in itertools.combinations(goldlabel2mentionindex.keys(),2):
+        differents_ = [];
+        for m1,m2 in itertools.product(goldlabel2mentionindex[g1],goldlabel2mentionindex[g2]):
+            differents_.append((m1,m2));
+            if len(differents_) >= max_diffs_per_gold_pair:
+                break;
+        differents += differents_;
+        if len(differents) >= max_diffs:
+            break;
+    return [[m1,m2,True,dict()] for m1,m2 in equivalents]+[[m1,m2,False,dict()] for m1,m2 in differents];
+
+
+def get_clusters_(M,refs,featsOf,similarities,thresholds,XF_type,FF_type,FX_type):
     XF,FF,FX         = getFF(M,None) if FF_type=='PROB' else getFF(M,0.5) if FF_type=='PROB_thr' else [None,csr((np.ones(M.shape[1]),(np.arange(M.shape[1]),np.arange(M.shape[1]))),dtype=int),None];
     XF               = XF if XF_type=='PROB' else M;
     FX               = FX if FX_type=='PROB' else M.T;

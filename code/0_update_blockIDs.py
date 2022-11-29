@@ -13,7 +13,7 @@ _chunk_size       =  250;
 
 _max_scroll_tries =    2;
 _scroll_size      =  500;
-_requestimeout    =   60;
+_request_timeout  =   60;
 _max_extract_time =    1; #minutes
 
 _recheck = True;
@@ -28,7 +28,8 @@ _refobjs = [    'anystyle_references_from_cermine_fulltext',
                 'anystyle_references_from_grobid_refstrings',   #                'anystyle_references_from_gold_fulltext',
                 'cermine_references_from_cermine_refstrings',   #                'anystyle_references_from_gold_refstrings',
                 'cermine_references_from_grobid_refstrings',    #                'cermine_references_from_gold_refstrings',
-                'grobid_references_from_grobid_xml' ];
+                'grobid_references_from_grobid_xml',
+                'exparser_references_from_cermine_layout' ];
 
 _ids = None;
 
@@ -109,7 +110,7 @@ def search(field,id_field,index,recheck):
 _client = ES(['localhost'],scheme='http',port=9200,timeout=60);
 
 i = 0;
-for success, info in bulk(_client,search(_field,_id_field,_index,_recheck,),chunk_size=_chunk_size, request_timeout=_requestimeout):
+for success, info in bulk(_client,search(_field,_id_field,_index,_recheck,),chunk_size=_chunk_size, request_timeout=_request_timeout):
     i += 1;
     if not success:
         print('\n[!]-----> A document failed:', info['index']['_id'], info['index']['error'],'\n');
