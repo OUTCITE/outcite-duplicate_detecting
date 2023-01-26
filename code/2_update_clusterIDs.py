@@ -1,18 +1,17 @@
 #-IMPORTS-----------------------------------------------------------------------------------------------------------------------------------------
+import sys
 import re
 from elasticsearch import Elasticsearch as ES
 from elasticsearch.helpers import streaming_bulk as bulk
 from common import *
 #-------------------------------------------------------------------------------------------------------------------------------------------------
 #-GLOBAL OBJECTS----------------------------------------------------------------------------------------------------------------------------------
-_index            = 'references';
+_index            = sys.argv[1];#'references';
 
 _chunk_size       =  250;
 _request_timeout  =   60;
 
-_featyp, _ngrams_n         = 'ngrams', 3; #words #wordgrams #None #5
-
-_featypes = {   'refstring':    'ngrams',
+_featypes = {   'refstring':    'ngrams',  #words #wordgrams #None
                 'sowiportID':   False,
                 'crossrefID':   False,
                 'dnbID':        False,
@@ -77,10 +76,12 @@ _fweight = { 'refstring': 0.72939795,
              'editor':   -0.67533247,
              'publisher': 0.15776101 }
 
-_bias = -5.55875478
+_bias = -5.55875478;
 
-_similarities, _thresholds = ['jaccard'], [[0.5]]; #jaccard #f1 #overlap #None
-_XF_type,_FF_type,_FX_type = 'PROB', 'PROB_thr', 'PROB';
+_ngrams_n = 3;
+
+_similarities, _thresholds = ['jaccard'], [[0.1]]; #jaccard #f1 #overlap #None
+_XF_type,_FF_type,_FX_type = None, None,None#'PROB', 'PROB_thr', 'PROB';
 
 #-------------------------------------------------------------------------------------------------------------------------------------------------
 #-FUNCTIONS---------------------------------------------------------------------------------------------------------------------------------------
@@ -91,11 +92,11 @@ _XF_type,_FF_type,_FX_type = 'PROB', 'PROB_thr', 'PROB';
 _client = ES(['localhost'],scheme='http',port=9200,timeout=60);
 
 i = 0;
-for success, info in bulk(_client,update_references(_index,'block_id','cluster_id',get_clusters,_featyp,_ngrams_n,[_similarities,_thresholds,_XF_type,_FF_type,_FX_type,_ftype,_fweight,_bias],False),chunk_size=_chunk_size, request_timeout=_request_timeout):
+for success, info in bulk(_client,update_references(_index,'block_id','cluster_id',get_clusters,_featypes,_ngrams_n,[_similarities,_thresholds,_XF_type,_FF_type,_FX_type,_ftype,_fweight,_bias],False),chunk_size=_chunk_size, request_timeout=_request_timeout):
     i += 1;
     if not success:
         print('\n[!]-----> A document failed:', info['index']['_id'], info['index']['error'],'\n');
-    print(i,info)
+    #print(i,info)
     if i % _chunk_size == 0:
         print(i,'refreshing...');
         _client.indices.refresh(index=_index);

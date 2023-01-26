@@ -1,4 +1,5 @@
 #-IMPORTS-----------------------------------------------------------------------------------------------------------------------------------------
+import sys
 import re
 from copy import deepcopy as copy
 from elasticsearch import Elasticsearch as ES
@@ -9,8 +10,8 @@ from common import *
 #-------------------------------------------------------------------------------------------------------------------------------------------------
 #-GLOBAL OBJECTS----------------------------------------------------------------------------------------------------------------------------------
 
-_index            = 'references'; #'geocite' #'ssoar'
-_out_index        = 'duplicates';
+_index            = sys.argv[1];#'references'; #'references_geocite' #'references_ssoar_gold'
+_out_index        = sys.argv[2];#'duplicates'; #'duplicates_geocite' #'duplicates_ssoar_gold'
 
 _priority = ['sowiport','crossref','dnb','openalex','bing'];
 
@@ -24,28 +25,31 @@ _body = { '_op_type': 'index',
           '_source':  {}
         }
 
+_tool_f1 = {
+    'grobid_references_from_grobid_xml':            {'reference':78,'title':62,'year':80,'authors':67,'editors': 5,'publishers':18,'source':48,'volume':64,'issue':29,'start':79,'end':80},
+    'cermine_references_from_grobid_refstrings':    {'reference':80,'title':58,'year':80,'authors': 0,'editors': 0,'publishers': 0,'source':30,'volume':55,'issue':31,'start':57,'end':56},
+    'cermine_references_from_cermine_xml':          {'reference':76,'title':55,'year':79,'authors':40,'editors': 0,'publishers': 0,'source':26,'volume':50,'issue':22,'start':53,'end':59},
+    'anystyle_references_from_cermine_fulltext':    {'reference':62,'title':59,'year':70,'authors':47,'editors':17,'publishers':18,'source':52,'volume':57,'issue':37,'start':64,'end':67},
+    'anystyle_references_from_pdftotext_fulltext':  {'reference':68,'title':64,'year':74,'authors':57,'editors':23,'publishers':17,'source':57,'volume':59,'issue':43,'start':70,'end':72},
+    'anystyle_references_from_cermine_refstrings':  {'reference':74,'title':62,'year':75,'authors':44,'editors':12,'publishers':17,'source':54,'volume':62,'issue':34,'start':70,'end':72},
+    'anystyle_references_from_grobid_refstrings':   {'reference':76,'title':69,'year':78,'authors':60,'editors':28,'publishers':24,'source':63,'volume':70,'issue':48,'start':77,'end':79},
+    'exparser_references_from_cermine_layout':      {'reference':45,'title':44,'year':61,'authors':40,'editors':20,'publishers': 8,'source':41,'volume':51,'issue':37,'start':53,'end':55}
+}
+
 #-------------------------------------------------------------------------------------------------------------------------------------------------
 #-FUNCTIONS---------------------------------------------------------------------------------------------------------------------------------------
 
-def get_ngrams(string,n):
-    if not string:
-        return [];
-    if isinstance(string,int):
-        return [string];
-    affix  = ''.join(['_' for j in range(n-1)]);
-    string = (affix + string + affix).lower();
-    return [string[i:i+n] for i in range(len(string)-(n-1))];
-
-def get_topterms(strings,threshold):
+def get_topterms(strings,tools,field,threshold):
     #reps  = [set([term.lower() for term in SEPS.split(string) if len(term)>=3]) if isinstance(string,str) else set([]) for string in strings];
     reps  = [set([ngram.lower() for ngram in get_ngrams(string,3)]) if isinstance(string,str) else set([]) for string in strings];
-    freqs = Counter(' '.join(' '.join(rep) for rep in reps).split());
-    tops  = [(freqs[term]/len(strings),term,) for term in freqs if freqs[term]/len(strings)>threshold];
+    freqs = sum([multiply(Counter(reps[i]),_tool_f1[tools[i]][field] if field in _tool_f1[tools[i]] else 100) for i in range(len(reps))],Counter())    #Counter(' '.join(' '.join(rep) for rep in reps).split());
+    tops  = [(freqs[term]/len([string for string in strings if string]),term,) for term in freqs if freqs[term]/len([string for string in strings if string])>threshold];
     return tops,reps; # Returns all words that occur in at least <threshold>*100% strings as well as the representations of all strings in the input order
 
 def best_representative(references,field,threshold):
     strings          = [reference[field] if field in reference and reference[field] else None for reference in references] if not field in ['authors','editors','publishers'] else [', '.join([element[field[:-1]+'_string'] for element in reference[field] if isinstance(element,dict) and field[:-1]+'_string' in element and isinstance(element[field[:-1]+'_string'],str)]) if field in reference and isinstance(reference[field],list) else None for reference in references];
-    top_terms, reps  = get_topterms(strings,threshold); #print('====>',field),print(strings), print(top_terms);
+    tools            = [reference['pipeline'] for reference in references]
+    top_terms, reps  = get_topterms(strings,tools,field,threshold); #print('====>',field),print(strings), print(top_terms);
     if len(reps) != len(strings):
         print('ERROR: Reps:',len(reps),'Strings:',len(strings));
     tops             = set(pair[1] for pair in top_terms);
@@ -57,6 +61,10 @@ def best_representative(references,field,threshold):
             if jaccard > max_val:
                 max_val = jaccard;
                 max_ind = i;
+    #print('----------------------------------------------------\n',strings,top_terms,tops)
+    #for rep in reps:
+    #    print(rep);
+    #print('----------------------------------------------------\n',reps[max_ind])
     #print(max_val,'->',references[max_ind][field] if max_ind >= 0 else None);
     return references[max_ind][field] if max_ind >= 0 else None;
 
@@ -132,9 +140,23 @@ def consolidate_references(index,duplicateIDs=[]):
         editors                     = best_representative(references,'editors'   ,0.30);
         publishers                  = best_representative(references,'publishers',0.30);
         target_collection, url      = best_url(references);
-        reference_new               = {};
+        volumes                     = [reference['volume'    ] if 'volume'     in reference else None for reference in references];
+        issues                      = [reference['issue'     ] if 'issue'      in reference else None for reference in references];
+        years                       = [reference['year'      ] if 'year'       in reference else None for reference in references];
+        starts                      = [reference['start'     ] if 'start'      in reference else None for reference in references];
+        ends                        = [reference['end'       ] if 'end'        in reference else None for reference in references];
+        refstrings                  = [reference['reference' ] if 'reference'  in reference else None for reference in references];
+        titles                      = [reference['title'     ] if 'title'      in reference else None for reference in references];
+        sources                     = [reference['source'    ] if 'source'     in reference else None for reference in references];
+        places                      = [reference['place'     ] if 'place'      in reference else None for reference in references];
+        authorss                    = [reference['authors'   ] if 'authors'    in reference else None for reference in references];
+        editorss                    = [reference['editors'   ] if 'editors'    in reference else None for reference in references];
+        publisherss                 = [reference['publishers'] if 'publishers' in reference else None for reference in references];
+        reference_new               = {'individual':{},'num_duplicates':len(references)};
         for field,value in [('id',duplicateID),('toCollection',target_collection),('toID',url),('reference',refstring),('volume',volume),('issue',issue),('year',year),('start',start),('end',end),('title',title),('source',source),('place',place),('authors',authors),('editors',editors),('publishers',publishers)]:
             reference_new[field] = value;
+        for field,value in [('individual_volumes',volumes),('individual_issues',issues),('individual_years',years),('individual_starts',starts),('individual_ends',ends),('individual_refstrings',refstrings),('individual_titles',titles),('individual_sources',sources),('individual_places',places),('individual_author_lists',authorss),('individual_editor_lists',editorss),('individual_publisher_lists',publisherss)]:
+            reference_new['individual'][field] = value;
         reference_new['ids'] = [reference['id'] for reference in references];
         yield duplicateID,reference_new;
 

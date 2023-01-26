@@ -26,6 +26,20 @@ _DBSCAN = False;
 #-------------------------------------------------------------------------------------------------------------------------------------------------
 #-FUNCTIONS---------------------------------------------------------------------------------------------------------------------------------------
 
+def multiply(counter,i):
+    for key in counter:
+        counter[key] *= i;
+    return counter;
+
+def get_ngrams(string,n):
+    if not string:
+        return [];
+    if isinstance(string,int):
+        return [string];
+    affix  = ''.join(['_' for j in range(n-1)]);
+    string = (affix + string + affix).lower();
+    return [string[i:i+n] for i in range(len(string)-(n-1))];
+
 def goldlabels(ids,DB_file,REP=False):
     con            = sqlite3.connect(DB_file);
     cur            = con.cursor();
@@ -56,13 +70,13 @@ def evaluate(auto_labelling,gold_labelling,thrs=[None],addvals=[]):
     return addvals + [val for pair in zip(precs,recs) for val in pair] + [avg_prec,avg_rec,0 if avg_prec+avg_rec==0 else round((2*avg_prec*avg_rec)/(avg_prec+avg_rec))];
     #print('max_gold:',thr,'avg/med auto cluster:',avg_size_auto,'/',med_size_auto,'avg/med gold cluster:',avg_size_gold,'/',med_size_gold,'---- T:',T,'P:',P,'TP:',TP,'---- Pre:',round(100*TP/P),'Rec:',round(100*TP/T));
 
-def update_references(index,fromField,toField,label_func,featyp,ngrams_n,args,KEY=False):#similarities,thresholds,XF_type,FF_type,FX_type):
+def update_references(index,fromField,toField,label_func,featypes,ngrams_n,args,KEY=False):#similarities,thresholds,XF_type,FF_type,FX_type):
     body = { '_op_type': 'update', '_index': index, '_id': None, '_source': { 'doc': { 'has_'+toField: True, toField: None } } };
     for ID, size in get_distinct(fromField+['','.keyword'][KEY],index):
         if size < 1 or size > 25000:
             continue;
-        M, refs, featsOf, index2feat, feat2index = get_matrix(index,fromField,ID,featyp,ngrams_n);
-        labellings                               = label_func(*([M,refs,index2feat]+args));#,similarities,thresholds,XF_type,FF_type,FX_type);
+        M, refs, featsOf, index2feat, feat2index = get_matrix(index,fromField,ID,featypes,ngrams_n);
+        labellings, samples                      = label_func(*([M,refs,index2feat]+args));#,similarities,thresholds,XF_type,FF_type,FX_type);
         labelling                                = labellings[0]; # If we wanted to use the dois, we could choose an optimal labelling
         for i in range(len(refs)):
             body                            = copy(body);
@@ -89,9 +103,9 @@ def update_references(index,fromField,toField,label_func):
             yield body;
 '''
 
-def display(refs,featsOf,labelling,threshold,FEATS=False):
-    table     = [(refs[i],featsOf[i],labelling[i],) for i in range(len(labelling))];
-    histogram = Counter(labelling);
+def display(refs,featsOf,auto_labelling,gold_labelling,threshold,FEATS=False):
+    table     = [(refs[i],featsOf[i],auto_labelling[i],gold_labelling[i],) for i in range(len(auto_labelling))];
+    histogram = Counter(auto_labelling);
     for label in histogram:
         if histogram[label] > threshold:
             for row in table:
@@ -108,7 +122,7 @@ def display(refs,featsOf,labelling,threshold,FEATS=False):
                             if features[ftype] != set([None]):
                                 print('    ',ftype.upper()+':','/'.join((str(fval) for fval in features[ftype]))[:150]);
                     else:
-                        print('--->', row[0]['reference']);
+                        print('--->',row[3], row[0]['reference']);
             input('________________________________________________________________________________________________________________________________________________________________________');
 
 def get_distinct(field,index):
@@ -210,10 +224,10 @@ def get_wordgrams(string,n):
     words  = get_words(string);
     return ['_'.join(words[i:i+n]) for i in range(len(words)-(n-1))];
 
-def process_features(ftypes,feats,types=None,n=None): #TODO: Add here different preprocessing ways for features depending on ftype
+def process_features(ftypes,feats,types=None,n=None):
     ftypes_, feats_ = [],[];
     for i in range(len(feats)):
-        if types[ftypes[i]]==False:
+        if (not types) or types[ftypes[i]]==False:
             continue;
         additional_feats = get_ngrams(feats[i],n) if types[ftypes[i]]=='ngrams' else get_words(feats[i]) if types[ftypes[i]]=='words' else get_wordgrams(feats[i],n) if types[ftypes[i]]=='wordgrams' else [feats[i]];
         feats_          += additional_feats;
@@ -266,8 +280,8 @@ def probability(XF,FF,FX):
 
 def getFF(M,thr=None):
     x_vec, f_vec         = M.sum(1), M.sum(0);
-    FX                   = M.astype(int).T.multiply(1.0/x_vec.T);
-    XF                   = M.astype(int).multiply(1.0/f_vec);
+    FX                   = csr(M.astype(int).T.multiply(1.0/x_vec.T));
+    XF                   = csr(M.astype(int).multiply(1.0/f_vec));
     FF                   = FX.dot(XF).sorted_indices();
     if not thr:
         return XF,FF,FX; 
@@ -294,7 +308,7 @@ def get_clusters(M,refs,index2feat,similarities,thresholds,XF_type,FF_type,FX_ty
         SIM_all = None;
         samples = [] if not gold_labelling else get_samples(gold_labelling);
         for ftype in ftype_ind:
-            print(ftype,XF.shape,FF.shape,FX.shape,len(index2feat),M.shape);
+            #print(ftype,XF.shape,FF.shape,FX.shape,len(index2feat),M.shape);
             DOT            = XF[:,ftype_ind[ftype]].dot(FF[ftype_ind[ftype],:][:,ftype_ind[ftype]]).dot(FX[ftype_ind[ftype],:]).sorted_indices();# if FF_type else XF.dot(FX).sorted_indices();
             SIZES          = DOT.diagonal();
             nzrows, nzcols = DOT.nonzero();
@@ -312,10 +326,12 @@ def get_clusters(M,refs,index2feat,similarities,thresholds,XF_type,FF_type,FX_ty
             m1,m2,equiv,_  = samples[j];
             samples[j][-1]['all'] = SIM_all[m1,m2];
         for threshold in thresholds[i]:
-            EQUIV           = SIM_all > threshold; print(EQUIV.sum(),'equivalent pairs before transitive closure');
+            EQUIV           = SIM_all > threshold; #print(EQUIV.sum(),'equivalent pairs before transitive closure');
             n_comps, labels = components(csgraph=EQUIV, directed=False, return_labels=True);
-            compsize        = Counter(labels); print(sum(compsize[label]**2 for label in compsize),'after transitive closure');
-            print( similarities[i], threshold, len(labels), max(labels)+1 ),
+            if len(labels) != len(refs):
+                print('\nERROR: Different number of labels than references:',len(labels),'vs.',len(refs));
+            #compsize        = Counter(labels); print(sum(compsize[label]**2 for label in compsize),'after transitive closure');
+            #print( similarities[i], threshold, len(labels), max(labels)+1 ),
             labellings.append(labels);
     return labellings,samples;
 

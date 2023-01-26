@@ -7,15 +7,16 @@ from common import *
 #-------------------------------------------------------------------------------------------------------------------------------------------------
 #-GLOBAL OBJECTS----------------------------------------------------------------------------------------------------------------------------------
 
-_index = sys.argv[1];
+_index     = sys.argv[1];
+_dup_index = sys.argv[2];
 
-_ORIGINAL = False;
+_dup_refobj = 'merged_references';
 
 _recheck = True;
 _ids     = [];
 
 _chunk_size       =  250;
-_requestimeout    =   60;
+_request_timeout  =   60;
 _scroll_size      =  500;
 _max_extract_time =    1; #minutes
 _max_scroll_tries =    2;
@@ -29,46 +30,42 @@ _refobjs = [    'anystyle_references_from_cermine_fulltext',
                 'anystyle_references_from_cermine_refstrings',
                 'anystyle_references_from_grobid_fulltext',
                 'anystyle_references_from_grobid_refstrings',   #                'anystyle_references_from_gold_fulltext',
+                'anystyle_references_from_pdftotext_fulltext',
                 'cermine_references_from_cermine_xml',          #                'anystyle_references_from_gold_refstrings',
                 'cermine_references_from_grobid_refstrings',#,    #                'cermine_references_from_gold_refstrings',
                 'grobid_references_from_grobid_xml',
-                'exparser_references_from_cermine_layout'
-                ];
+                'exparser_references_from_cermine_layout' ];
 
 _fields = ['reference','volume','issue','year','start','end','title','source','place','authors','editors','publishers'];
 
-_scr_query = { "ids": { "values": _ids } } if _ids else {'bool':{'must_not':{'term':{'has_duplicates': False}}}} if not _recheck else {'match_all':{}};
+_scr_query = { "ids": { "values": _ids } } if _ids else {'bool':{'must_not':{'term':{'has_duplicates': True}}}} if not _recheck else {'match_all':{}};
 
-_body = { '_op_type': 'update', '_index': _index, '_id': None, '_source': { 'doc': { 'has_duplicates': False } } };
+_body = { '_op_type': 'update', '_index': _index, '_id': None, '_source': { 'doc': { 'has_duplicates': True } } };
 
 #-------------------------------------------------------------------------------------------------------------------------------------------------
 #-FUNCTIONS---------------------------------------------------------------------------------------------------------------------------------------
 
-def update_refobjects(refobjects,fromID,toolchain,client,index,fields):
-    query          = {'ids':{'values':[None]}};
-    refIDs         = [];
+def create_refobjects(num_refs,fromID,toolchain,client,index,fields):
+    query          = {'term':{'ids.keyword':None}};
+    dupIDs         = [];
     new_refobjects = [];
-    for i in range(len(refobjects)):
+    for i in range(num_refs):
         refID = toolchain+'_'+fromID+'_ref_'+str(i);
-        new_refobjects.append(copy(refobjects[i]));
-        new_refobjects[-1]['id'] = refID;
-        query['ids']['values']   = [refID]; #print(query); #TODO: Make sure that this query and the rest of the code really work...
-        results                  = [(result['_source'],result['_id'],) for result in client.search(index=index,query=query)['hits']['hits']];
-        #print(len(results),'results in duplicates index for',refID);
+        new_refobjects.append(dict());
+        query['term']['ids.keyword'] = refID;
+        results                      = [(result['_source'],result['_id'],) for result in client.search(index=index,query=query)['hits']['hits']];
         if len(results) > 0:
-            refobject, refID_ = results[0];
-            refIDs.append(refID);
-            if refID == refID_:
+            duplicate, dupID         = results[0];
+            new_refobjects[-1]['id'] = dupID;
+            if refID in duplicate['ids']:
+                dupIDs.append(dupID);
                 for field in fields:
-                    field_ = field+'_original' if _ORIGINAL else field;
-                    if field_ in refobject:
-                        new_refobjects[-1][field] = refobject[field_];
+                    new_refobjects[-1][field] = duplicate[field] if field in duplicate else None;
             else:
-                print('Constructed',refID,'different from matched',refID_,'.');
-                new_refobjects.append(refobjects[i]);
-    return new_refobjects,refIDs;
+                print('Could not find',refID,'in',duplicate['ids'],'.');
+    return new_refobjects,dupIDs;
 
-def update_docs(index,index_m,fields):
+def update_docs(index,index_m,fields): #TODO: Test
     client   = ES(['localhost'],scheme='http',port=9200,timeout=60);
     client_m = ES(['localhost'],scheme='http',port=9200,timeout=60);
     page     = client.search(index=index,scroll=str(int(_max_extract_time*_scroll_size))+'m',size=_scroll_size,query=_scr_query);
@@ -77,15 +74,19 @@ def update_docs(index,index_m,fields):
     page_num = 0;
     while returned > 0:
         for doc in page['hits']['hits']:
-            body        = copy(_body);
-            body['_id'] = doc['_id'];
+            body           = copy(_body);
+            body['_id']    = doc['_id'];
+            dupIDs         = set();
+            dup_refobjects = [];
             #------------------------------------------------------------------------------------------------------------------------------
             for refobj in _refobjs:
-                previous_refobjects    = doc['_source'][refobj] if refobj in doc['_source'] and doc['_source'][refobj] else [];
-                new_refobjects, dupIDs = update_refobjects(previous_refobjects,doc['_id'],refobj,client_m,index_m,fields);
-                if len(dupIDs) == 0:
-                    continue;
-                body['_source']['doc'][refobj] = new_refobjects;
+                num_refobjects          = len(doc['_source'][refobj]) if refobj in doc['_source'] and doc['_source'][refobj] else 0;
+                new_refobjects, dupIDs_ = create_refobjects(num_refobjects,doc['_id'],refobj,client_m,index_m,fields);
+                for i in range(len(dupIDs_)):
+                    if not dupIDs_[i] in dupIDs:
+                        dupIDs.add(dupIDs_[i]);
+                        dup_refobjects.append(new_refobjects[i]);
+            body['_source']['doc'][_dup_refobj] = dup_refobjects;
             #------------------------------------------------------------------------------------------------------------------------------
                 #print(refobj,'=> Updating references of',body['_id'],'by attributes of duplicates',[refobject['id']+' --> '+str(refobject['duplicate_id']) for refobject in new_refobjects if 'duplicate_id' in refobject]);
             yield body;
@@ -110,7 +111,7 @@ def update_docs(index,index_m,fields):
 _client = ES(['localhost'],scheme='http',port=9200,timeout=60);
 
 i = 0;
-for success, info in bulk(_client,update_docs(_index,'references',_fields),chunk_size=_chunk_size, request_timeout=_requestimeout):
+for success, info in bulk(_client,update_docs(_index,_dup_index,_fields),chunk_size=_chunk_size, request_timeout=_request_timeout):
     i += 1;
     if not success:
         print('\n[!]-----> A document failed:', info['index']['_id'], info['index']['error'],'\n');

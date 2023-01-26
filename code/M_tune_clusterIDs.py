@@ -10,9 +10,7 @@ _samplefile       = 'resources/training/labels_'+str(_label);
 
 _index            = 'references'; #'geocite' #'ssoar'
 
-_featyp   = 'wordgrams'; #ngrams #words #wordgrams #None
-
-_featypes = {   'refstring':    'ngrams',
+_featypes = {   'refstring':    'ngrams', #ngrams #words #wordgrams #None
                 'sowiportID':   False,
                 'crossrefID':   False,
                 'dnbID':        False,
@@ -122,7 +120,7 @@ for XF_type,FF_type,FX_type in _type_combs:
             for j in range(len(_thresholds[i])):
                 print(_similarities[i], _thresholds[i][j], '#mentions:', len(auto_labelling), '#auto clusters:', max(auto_labelling)+1, '#gold clusters:', len(set(gold_labelling)) );
                 try:
-                    display(refs,featsOf,labellings[sum([len(L) for L in _thresholds[:i]])+j],0,_show_feats);
+                    display(refs,featsOf,labellings[sum([len(L) for L in _thresholds[:i]])+j],gold_labelling,0,_show_feats);
                 except KeyboardInterrupt:
                     pass;
 

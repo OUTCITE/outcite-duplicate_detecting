@@ -8,9 +8,10 @@ from elasticsearch import Elasticsearch as ES
 from elasticsearch.helpers import streaming_bulk as bulk
 #-------------------------------------------------------------------------------------------------------------------------------------------------
 #-GLOBAL OBJECTS----------------------------------------------------------------------------------------------------------------------------------
-_index            = sys.argv[1]; #'geocite' #'ssoar'
-_chunk_size       =  250;
+_index  = sys.argv[1]; #'geocite' #'ssoar'
+_dup_db = sys.argv[2];#"/home/outcite/duplicate_detecting/resources/mention_labels.db"
 
+_chunk_size       =  250;
 _max_scroll_tries =    2;
 _scroll_size      =  500;
 _request_timeout  =   60;
@@ -18,7 +19,6 @@ _max_extract_time =    1; #minutes
 
 _recheck = True;
 
-_dup_db   = "/home/outcite/duplicate_detecting/resources/mention_labels.db"
 _field    = "block_ids"
 _id_field = "block_id"
 
@@ -26,7 +26,8 @@ _refobjs = [    'anystyle_references_from_cermine_fulltext',
                 'anystyle_references_from_cermine_refstrings',
                 'anystyle_references_from_grobid_fulltext',
                 'anystyle_references_from_grobid_refstrings',   #                'anystyle_references_from_gold_fulltext',
-                'cermine_references_from_cermine_refstrings',   #                'anystyle_references_from_gold_refstrings',
+                'anystyle_references_from_pdftotext_fulltext',
+                'cermine_references_from_cermine_xml',   #                'anystyle_references_from_gold_refstrings',
                 'cermine_references_from_grobid_refstrings',    #                'cermine_references_from_gold_refstrings',
                 'grobid_references_from_grobid_xml',
                 'exparser_references_from_cermine_layout' ];
@@ -61,7 +62,7 @@ def get_blockID(refobjects,id_field,pipeline,docid,cur):
 
 def search(field,id_field,index,recheck):
     #----------------------------------------------------------------------------------------------------------------------------------
-    body     = { '_op_type': 'update', '_index': index, '_id': None, '_source': { 'doc': { 'has_'+field: True, field: None } } };
+    body     = { '_op_type': 'update', '_index': index, '_id': None, '_source': { 'doc': { 'has_'+field: False, 'processed_'+field: True, 'num_'+field:0, field: None } } };
     scr_body = { "query": { "ids": { "values": _ids } } } if _ids else {'query':{'bool':{'must_not':{'term':{'has_'+field: True}}}}} if not recheck else {'query':{'match_all':{}}};
     #print(scr_body);
     #----------------------------------------------------------------------------------------------------------------------------------
@@ -89,6 +90,7 @@ def search(field,id_field,index,recheck):
             #print('------------------------------------------------\n-- overall ids --------------------------------\n'+', '.join(ids)+'\n------------------------------------------------');
             body['_source']['doc'][field]        = list(ids) if len(ids) > 0 else None;
             body['_source']['doc']['has_'+field] = True      if len(ids) > 0 else False;
+            body['_source']['doc']['num_'+field] = len(ids);
             yield body;
         scroll_tries = 0;
         while scroll_tries < _max_scroll_tries:
