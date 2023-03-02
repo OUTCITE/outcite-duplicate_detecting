@@ -26,14 +26,14 @@ _body = { '_op_type': 'index',
         }
 
 _tool_f1 = {
-    'grobid_references_from_grobid_xml':            {'reference':78,'title':62,'year':80,'authors':67,'editors': 5,'publishers':18,'source':48,'volume':64,'issue':29,'start':79,'end':80},
-    'cermine_references_from_grobid_refstrings':    {'reference':80,'title':58,'year':80,'authors': 0,'editors': 0,'publishers': 0,'source':30,'volume':55,'issue':31,'start':57,'end':56},
-    'cermine_references_from_cermine_xml':          {'reference':76,'title':55,'year':79,'authors':40,'editors': 0,'publishers': 0,'source':26,'volume':50,'issue':22,'start':53,'end':59},
-    'anystyle_references_from_cermine_fulltext':    {'reference':62,'title':59,'year':70,'authors':47,'editors':17,'publishers':18,'source':52,'volume':57,'issue':37,'start':64,'end':67},
-    'anystyle_references_from_pdftotext_fulltext':  {'reference':68,'title':64,'year':74,'authors':57,'editors':23,'publishers':17,'source':57,'volume':59,'issue':43,'start':70,'end':72},
-    'anystyle_references_from_cermine_refstrings':  {'reference':74,'title':62,'year':75,'authors':44,'editors':12,'publishers':17,'source':54,'volume':62,'issue':34,'start':70,'end':72},
-    'anystyle_references_from_grobid_refstrings':   {'reference':76,'title':69,'year':78,'authors':60,'editors':28,'publishers':24,'source':63,'volume':70,'issue':48,'start':77,'end':79},
-    'exparser_references_from_cermine_layout':      {'reference':45,'title':44,'year':61,'authors':40,'editors':20,'publishers': 8,'source':41,'volume':51,'issue':37,'start':53,'end':55}
+    'grobid_references_from_grobid_xml':            {'reference':79,'title':63,'year':83,'authors':65,'editors': 0,'publishers':18,'source':51,'volume':69,'issue':32,'start':81,'end':82},
+    'cermine_references_from_grobid_refstrings':    {'reference':81,'title':61,'year':83,'authors': 0,'editors': 0,'publishers': 0,'source':32,'volume':57,'issue':33,'start':57,'end':57},
+    'cermine_references_from_cermine_xml':          {'reference':79,'title':60,'year':85,'authors':38,'editors': 0,'publishers': 0,'source':26,'volume':52,'issue':25,'start':54,'end':67},
+    'anystyle_references_from_cermine_fulltext':    {'reference':68,'title':65,'year':78,'authors':50,'editors':17,'publishers':18,'source':57,'volume':64,'issue':41,'start':69,'end':72},
+    'anystyle_references_from_pdftotext_fulltext':  {'reference':72,'title':70,'year':81,'authors':58,'editors':24,'publishers':16,'source':61,'volume':66,'issue':45,'start':73,'end':76},
+    'anystyle_references_from_cermine_refstrings':  {'reference':81,'title':69,'year':84,'authors':48,'editors':11,'publishers':18,'source':59,'volume':71,'issue':37,'start':75,'end':81},
+    'anystyle_references_from_grobid_refstrings':   {'reference':82,'title':75,'year':87,'authors':64,'editors':33,'publishers':23,'source':67,'volume':79,'issue':51,'start':82,'end':86},
+    'exparser_references_from_cermine_layout':      {'reference':48,'title':46,'year':67,'authors':36,'editors':20,'publishers': 7,'source':41,'volume':52,'issue':34,'start':54,'end':58}
 }
 
 #-------------------------------------------------------------------------------------------------------------------------------------------------
