@@ -185,7 +185,7 @@ def get_features(cur):
     num_rows     = cur.execute("SELECT COUNT(*) FROM refmetas").fetchall()[0][0];
     times        = {'years':0,'source':0,'title':0,'authors':0};
     cur.execute("SELECT * FROM refmetas");
-    for linkID, fromPipeline, sowiportID, crossrefID, dnbID, openalexID, issue, volume, year, source, title, a1sur, a1init, a1first, a2sur, a2init, a2first, a3sur, a3init, a3first, a4sur, a4init, a4first, e1sur, e1init, e1first, publisher1 in cur:
+    for linkID, fromPipeline, sowiportID, crossrefID, dnbID, openalexID, arxivID, ssoarID, dataID, bibID, issue, volume, year, source, title, a1sur, a1init, a1first, a2sur, a2init, a2first, a3sur, a3init, a3first, a4sur, a4init, a4first, e1sur, e1init, e1first, publisher1 in cur:
         row_num += 1;
         if row_num % 1000 == 0:
             print(round(100.0*row_num/num_rows,2),'%  ',times,end='\r');
@@ -203,7 +203,7 @@ def get_features(cur):
         #print('|'.join([el for el in [title_term1, title_term2, title_term3, title_term4, title_term5, title_term6]                   if el]))
         #print('|'.join([el for el in [a1sur, a1init, a1first, a2sur, a2init, a2first, a3sur, a3init, a3first, a4sur, a4init, a4first] if el]))
         #print('--------------------------------------------------------');
-        yield (linkID2index[linkID],linkID,None,1.0,sowiportID,crossrefID,dnbID,openalexID,title,year1,year2,a1sur,a1init,a1first,a2sur,a2init,a2first,a3sur,a3init,a3first,a4sur,a4init,a4first,title_term1, title_term2, title_term3, title_term4, title_term5, title_term6,source_term1, source_term2, source_term3, source_term4, source_term5, source_term6,);
+        yield (linkID2index[linkID],linkID,None,1.0,sowiportID,crossrefID,dnbID,openalexID,arxivID,ssoarID,dataID,bibID,title,year1,year2,a1sur,a1init,a1first,a2sur,a2init,a2first,a3sur,a3init,a3first,a4sur,a4init,a4first,title_term1, title_term2, title_term3, title_term4, title_term5, title_term6,source_term1, source_term2, source_term3, source_term4, source_term5, source_term6,);
 
 #-----------------------------------------------------------------------------------------------------------------------
 #  --> Lower case and ASCII
@@ -216,9 +216,9 @@ con_out = sqlite3.connect(_outdb);
 cur_out = con_out.cursor();
 
 cur_out.execute("DROP TABLE IF EXISTS mentions");
-cur_out.execute('CREATE TABLE mentions(mentionID INT, originalID TEXT, goldID TEXT, freq REAL, sowiportID TEXT, crossrefID TEXT, dnbID TEXT, openalexID TEXT, title TEXT, year1 INT, year2 INT, a1sur TEXT, a1init TEXT, a1first TEXT, a2sur TEXT, a2init TEXT, a2first TEXT, a3sur TEXT, a3init TEXT, a3first TEXT, a4sur TEXT, a4init TEXT, a4first TEXT, term1 TEXT, term2 TEXT, term3 TEXT, term4 TEXT, term5 TEXT, term6 TEXT, term1gen TEXT, term2gen TEXT, term3gen TEXT, term4gen TEXT, term5gen TEXT, term6gen TEXT)');
+cur_out.execute('CREATE TABLE mentions(mentionID INT, originalID TEXT, goldID TEXT, freq REAL, sowiportID TEXT, crossrefID TEXT, dnbID TEXT, openalexID TEXT, arxivID TEXT, ssoarID TEXT, research_dataID TEXT, gesis_bibID TEXT, title TEXT, year1 INT, year2 INT, a1sur TEXT, a1init TEXT, a1first TEXT, a2sur TEXT, a2init TEXT, a2first TEXT, a3sur TEXT, a3init TEXT, a3first TEXT, a4sur TEXT, a4init TEXT, a4first TEXT, term1 TEXT, term2 TEXT, term3 TEXT, term4 TEXT, term5 TEXT, term6 TEXT, term1gen TEXT, term2gen TEXT, term3gen TEXT, term4gen TEXT, term5gen TEXT, term6gen TEXT)');
 
-cur_out.executemany("INSERT INTO mentions VALUES("+','.join(['?' for i in range(35)])+")",get_features(cur));
+cur_out.executemany("INSERT INTO mentions VALUES("+','.join(['?' for i in range(39)])+")",get_features(cur));
 con_out.commit();
 
 cur_out.execute("CREATE INDEX IF NOT EXISTS originalID_index ON mentions(originalID)");

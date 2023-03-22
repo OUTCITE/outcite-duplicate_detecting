@@ -13,7 +13,7 @@ from common import *
 _index            = sys.argv[1];#'references'; #'references_geocite' #'references_ssoar_gold'
 _out_index        = sys.argv[2];#'duplicates'; #'duplicates_geocite' #'duplicates_ssoar_gold'
 
-_priority = ['sowiport','crossref','dnb','openalex','bing'];
+_priority = ['ssoar','research_data','gesis_bib','sowiport','crossref','dnb','openalex','arxiv','bing'];
 
 SEPS = re.compile(r'[^A-Za-zßäöü]');
 WORD = re.compile(r'[A-Za-zßäöü]{2,}');
@@ -153,11 +153,19 @@ def consolidate_references(index,duplicateIDs=[]):
         editorss                    = [reference['editors'   ] if 'editors'    in reference else None for reference in references];
         publisherss                 = [reference['publishers'] if 'publishers' in reference else None for reference in references];
         reference_new               = {'individual':{},'num_duplicates':len(references)};
+        matches                     = {target:[reference[target+'_id'] for reference in references if target+'_id' in reference] for target in _priority};
         for field,value in [('id',duplicateID),('toCollection',target_collection),('toID',url),('reference',refstring),('volume',volume),('issue',issue),('year',year),('start',start),('end',end),('title',title),('source',source),('place',place),('authors',authors),('editors',editors),('publishers',publishers)]:
             reference_new[field] = value;
-        for field,value in [('individual_volumes',volumes),('individual_issues',issues),('individual_years',years),('individual_starts',starts),('individual_ends',ends),('individual_refstrings',refstrings),('individual_titles',titles),('individual_sources',sources),('individual_places',places),('individual_author_lists',authorss),('individual_editor_lists',editorss),('individual_publisher_lists',publisherss)]:
+        for field,value in [('individual_matches_'+target,matches[target]) for target in _priority]+[('individual_volumes',volumes),('individual_issues',issues),('individual_years',years),('individual_starts',starts),('individual_ends',ends),('individual_refstrings',refstrings),('individual_titles',titles),('individual_sources',sources),('individual_places',places),('individual_author_lists',authorss),('individual_editor_lists',editorss),('individual_publisher_lists',publisherss)]:
             reference_new['individual'][field] = value;
         reference_new['ids'] = [reference['id'] for reference in references];
+        for target in _priority:
+            reference_new[    'matches_'+target] = list(set(matches[target]));
+            reference_new['num_matches_'+target] = len(reference_new['matches_'+target]);
+            reference_new['has_matches_'+target] = reference_new['num_matches_'+target] > 0;
+        reference_new['matches'] = list(set([match for target in _priority for match in matches[target]]));
+        reference_new['num_matches'] = len(reference_new['matches']);
+        reference_new['has_matches'] = reference_new['num_matches'] > 0;
         yield duplicateID,reference_new;
 
 def get_duplicates(index):

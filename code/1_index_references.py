@@ -37,7 +37,7 @@ def get_references(index):
     #----------------------------------------------------------------------------------------------------------------------------------
     scr_query = { 'match_all':{} };
     #----------------------------------------------------------------------------------------------------------------------------------
-    client   = ES(['localhost'],scheme='http',port=9200,timeout=60);
+    client   = ES(['http://localhost:9200'],timeout=60);#ES(['localhost'],scheme='http',port=9200,timeout=60);
     page     = client.search(index=index,scroll=str(int(_max_extract_time*_scroll_size))+'m',size=_scroll_size,query=scr_query,_source=['@id']+_refobjs);
     sid      = page['_scroll_id'];
     returned = len(page['hits']['hits']);
@@ -64,7 +64,7 @@ def get_references(index):
                                     body['_source'][key[:-9]] = reference[key]; # Overwrite the non-original with the original
                             else:
                                 body['_source'][key] = reference[key];
-                        for to_collection in ['sowiport','crossref','dnb','openalex']:
+                        for to_collection in ['sowiport','crossref','dnb','openalex','ssoar','arxiv','research_data','gesis_bib','econbiz','fulltext']:
                             body['_source']['has_'+to_collection+ '_id'] = (to_collection+ '_id' in reference and reference[to_collection+ '_id']!=None);
                             body['_source']['has_'+to_collection+'_url'] = (to_collection+'_url' in reference and reference[to_collection+'_url']!=None);
                         yield body;
@@ -85,7 +85,7 @@ def get_references(index):
 
 #-------------------------------------------------------------------------------------------------------------------------------------------------
 
-_client   = ES(['localhost'],scheme='http',port=9200,timeout=60);
+_client   = ES(['http://localhost:9200'],timeout=60);#ES(['localhost'],scheme='http',port=9200,timeout=60);
 
 i = 0;
 for success, info in bulk(_client,get_references(_index),chunk_size=_chunk_size): #TODO: I have no idea why, but this accumulates huge amount of memory and then too much

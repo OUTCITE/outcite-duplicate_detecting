@@ -130,7 +130,7 @@ def get_distinct(field,index):
     query = { "exists": {"field": field} };
     aggs  = { field: { "composite": { "size":100, "sources": [ {field: {"terms": { "field": field } } } ] } } };
     #----------------------------------------------------------------------------------------------------------------------------------
-    client    = ES(['localhost'],scheme='http',port=9200,timeout=60);
+    client    = ES(['http://localhost:9200'],timeout=60);#ES(['localhost'],scheme='http',port=9200,timeout=60);
     page_num  = 0;
     returned  = -1;
     while returned != 0:
@@ -145,7 +145,7 @@ def get_by_fieldvalue(field,ID,index):
     #----------------------------------------------------------------------------------------------------------------------------------
     scr_body = { "query": { "term": { field: ID } } };
     #----------------------------------------------------------------------------------------------------------------------------------
-    client   = ES(['localhost'],scheme='http',port=9200,timeout=60);
+    client   = ES(['http://localhost:9200'],timeout=60);#ES(['localhost'],scheme='http',port=9200,timeout=60);
     page     = client.search(index=index,scroll=str(int(_max_extract_time*_scroll_size))+'m',size=_scroll_size,body=scr_body);
     sid      = page['_scroll_id'];
     returned = len(page['hits']['hits']);
