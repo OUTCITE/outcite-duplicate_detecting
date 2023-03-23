@@ -181,7 +181,7 @@ def get_duplicates(index):
 #_duplicateIDs = [("84_2_0",None)];
 #print(list(consolidate_references(_index,duplicateIDs=_duplicateIDs)));
 #'''
-_client   = ES(['localhost'],scheme='http',port=9200,timeout=60);
+_client   = ES(['http://localhost:9200'],timeout=60);#ES(['localhost'],scheme='http',port=9200,timeout=60);
 
 i = 0;
 for success, info in bulk(_client,get_duplicates(_index)):

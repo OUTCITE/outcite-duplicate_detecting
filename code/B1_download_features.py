@@ -33,7 +33,7 @@ def get_references(index,refobj):
     #----------------------------------------------------------------------------------------------------------------------------------
     scr_query = { 'match_all':{} };
     #----------------------------------------------------------------------------------------------------------------------------------
-    client   = ES(['localhost'],scheme='http',port=9200,timeout=60);
+    client   = ES(['http://localhost:9200'],timeout=60);#ES(['localhost'],scheme='http',port=9200,timeout=60);
     page     = client.search(index=index,scroll=str(int(_max_extract_time*_scroll_size))+'m',size=_scroll_size,query=scr_query,_source=[_id_field,refobj,'results_'+refobj]);
     sid      = page['_scroll_id'];
     returned = len(page['hits']['hits']);
@@ -95,7 +95,7 @@ def get_references(index,refobj):
 _con = sqlite3.connect(_outDB);
 _cur = _con.cursor();
 
-_client = ES(['localhost'],scheme='http',port=9200,timeout=60);
+_client = ES(['http://localhost:9200'],timeout=60);#ES(['localhost'],scheme='http',port=9200,timeout=60);
 
 _cur.execute("DROP   TABLE IF EXISTS refmetas");
 _cur.execute("CREATE TABLE           refmetas(linkID TEXT PRIMARY KEY, fromPipeline TEXT, sowiportID TEXT, crossrefID TEXT, dnbID TEXT, openalexID TEXT, arxivID TEXT, ssoarID TEXT, research_dataID TEXT, gesis_bibID TEXT, issue INT, volume INT, year INT,source TEXT, title TEXT, a1sur TEXT, a1init TEXT, a1first TEXT, a2sur TEXT, a2init TEXT, a2first TEXT, a3sur TEXT, a3init TEXT, a3first TEXT, a4sur TEXT, a4init TEXT, a4first TEXT, e1sur TEXT, e1init TEXT, e1first TEXT, publisher1 TEXT)");

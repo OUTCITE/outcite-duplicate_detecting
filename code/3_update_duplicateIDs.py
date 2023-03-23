@@ -102,7 +102,7 @@ def is_equivalent(ref1,ref2,config):
 #-------------------------------------------------------------------------------------------------------------------------------------------------
 #-SCRIPT------------------------------------------------------------------------------------------------------------------------------------------
 
-_client = ES(['localhost'],scheme='http',port=9200,timeout=60);
+_client = ES(['http://localhost:9200'],timeout=60);#ES(['localhost'],scheme='http',port=9200,timeout=60);
 
 i = 0;
 for success, info in bulk(_client,update_references(_index,'cluster_id','duplicate_id',get_duplicates,_featypes,_ngrams_n,[_configs],True),chunk_size=_chunk_size, request_timeout=_request_timeout):

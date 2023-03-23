@@ -89,7 +89,7 @@ _XF_type,_FF_type,_FX_type = None, None,None#'PROB', 'PROB_thr', 'PROB';
 #-------------------------------------------------------------------------------------------------------------------------------------------------
 #-SCRIPT------------------------------------------------------------------------------------------------------------------------------------------
 
-_client = ES(['localhost'],scheme='http',port=9200,timeout=60);
+_client = ES(['http://localhost:9200'],timeout=60);#ES(['localhost'],scheme='http',port=9200,timeout=60);
 
 i = 0;
 for success, info in bulk(_client,update_references(_index,'block_id','cluster_id',get_clusters,_featypes,_ngrams_n,[_similarities,_thresholds,_XF_type,_FF_type,_FX_type,_ftype,_fweight,_bias],False),chunk_size=_chunk_size, request_timeout=_request_timeout):

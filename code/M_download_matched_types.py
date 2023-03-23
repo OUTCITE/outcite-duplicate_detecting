@@ -27,7 +27,7 @@ _typefield  = {'sowiport': 'subtype',
 #-FUNCTIONS---------------------------------------------------------------------------------------------------------------------------------------
 
 def get_references(index,target,typefield):
-    client   = ES(['localhost'],scheme='http',port=9200,timeout=60);
+    client   = ES(['http://localhost:9200'],timeout=60);#ES(['localhost'],scheme='http',port=9200,timeout=60);
     page     = client.search(index=index,scroll=str(int(_max_extract_time*_scroll_size))+'m',size=_scroll_size,query={'term':{'has_'+target+'_id':True}},_source=['pipeline',target+'_id','type']);
     sid      = page['_scroll_id'];
     returned = len(page['hits']['hits']);
@@ -58,7 +58,7 @@ def get_references(index,target,typefield):
     client.clear_scroll(scroll_id=sid);
 
 def get_matched_types(index,field,value):
-    client   = ES(['localhost'],scheme='http',port=9200,timeout=60);
+    client   = ES(['http://localhost:9200'],timeout=60);#ES(['localhost'],scheme='http',port=9200,timeout=60);
     page     = client.search(index=index,query={'term':{field:value}},_source=['type']);
     returned = len(page['hits']['hits']);
     if returned>1:

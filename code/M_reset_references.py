@@ -69,8 +69,8 @@ def update_refobjects(refobjects,fromID,toolchain,client,index,fields):
     return new_refobjects,refIDs;
 
 def update_docs(index,index_m,fields):
-    client   = ES(['localhost'],scheme='http',port=9200,timeout=60);
-    client_m = ES(['localhost'],scheme='http',port=9200,timeout=60);
+    client   = ES(['http://localhost:9200'],timeout=60);#ES(['localhost'],scheme='http',port=9200,timeout=60);
+    client_m = ES(['http://localhost:9200'],timeout=60);#ES(['localhost'],scheme='http',port=9200,timeout=60);
     page     = client.search(index=index,scroll=str(int(_max_extract_time*_scroll_size))+'m',size=_scroll_size,query=_scr_query);
     sid      = page['_scroll_id'];
     returned = len(page['hits']['hits']);
@@ -107,7 +107,7 @@ def update_docs(index,index_m,fields):
 #-------------------------------------------------------------------------------------------------------------------------------------------------
 #-SCRIPT------------------------------------------------------------------------------------------------------------------------------------------
 
-_client = ES(['localhost'],scheme='http',port=9200,timeout=60);
+_client = ES(['http://localhost:9200'],timeout=60);#ES(['localhost'],scheme='http',port=9200,timeout=60);
 
 i = 0;
 for success, info in bulk(_client,update_docs(_index,'references',_fields),chunk_size=_chunk_size, request_timeout=_requestimeout):
