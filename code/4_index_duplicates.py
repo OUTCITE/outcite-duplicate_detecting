@@ -26,14 +26,24 @@ _body = { '_op_type': 'index',
         }
 
 _tool_f1 = {
-    'grobid_references_from_grobid_xml':            {'reference':79,'title':63,'year':83,'authors':65,'editors': 0,'publishers':18,'source':51,'volume':69,'issue':32,'start':81,'end':82},
-    'cermine_references_from_grobid_refstrings':    {'reference':81,'title':61,'year':83,'authors': 0,'editors': 0,'publishers': 0,'source':32,'volume':57,'issue':33,'start':57,'end':57},
-    'cermine_references_from_cermine_xml':          {'reference':79,'title':60,'year':85,'authors':38,'editors': 0,'publishers': 0,'source':26,'volume':52,'issue':25,'start':54,'end':67},
-    'anystyle_references_from_cermine_fulltext':    {'reference':68,'title':65,'year':78,'authors':50,'editors':17,'publishers':18,'source':57,'volume':64,'issue':41,'start':69,'end':72},
-    'anystyle_references_from_pdftotext_fulltext':  {'reference':72,'title':70,'year':81,'authors':58,'editors':24,'publishers':16,'source':61,'volume':66,'issue':45,'start':73,'end':76},
-    'anystyle_references_from_cermine_refstrings':  {'reference':81,'title':69,'year':84,'authors':48,'editors':11,'publishers':18,'source':59,'volume':71,'issue':37,'start':75,'end':81},
-    'anystyle_references_from_grobid_refstrings':   {'reference':82,'title':75,'year':87,'authors':64,'editors':33,'publishers':23,'source':67,'volume':79,'issue':51,'start':82,'end':86},
-    'exparser_references_from_cermine_layout':      {'reference':48,'title':46,'year':67,'authors':36,'editors':20,'publishers': 7,'source':41,'volume':52,'issue':34,'start':54,'end':58}
+    'grobid_references_from_grobid_xml':            {'reference':80,'title':66,'year':81,'authors':69,'editors': 8,'publishers':40,'source':48,'volume':65,'issue':33,'start':77,'end':77},
+    'cermine_references_from_grobid_refstrings':    {'reference':80,'title':57,'year':76,'authors':12,'editors': 0,'publishers': 0,'source':27,'volume':30,'issue':13,'start':38,'end':37},
+    'cermine_references_from_cermine_xml':          {'reference':81,'title':57,'year':78,'authors':15,'editors': 0,'publishers': 0,'source':28,'volume':32,'issue':12,'start':39,'end':39},
+    'anystyle_references_from_cermine_fulltext':    {'reference':79,'title':72,'year':82,'authors':63,'editors':30,'publishers':48,'source':62,'volume':63,'issue':45,'start':68,'end':71},
+    'anystyle_references_from_pdftotext_fulltext':  {'reference':82,'title':74,'year':83,'authors':65,'editors':32,'publishers':49,'source':64,'volume':64,'issue':43,'start':73,'end':76},
+    'anystyle_references_from_cermine_refstrings':  {'reference':81,'title':71,'year':82,'authors':57,'editors':21,'publishers':46,'source':64,'volume':63,'issue':40,'start':73,'end':75},
+    'anystyle_references_from_grobid_fulltext':     {'reference':77,'title':70,'year':79,'authors':61,'editors':31,'publishers':46,'source':62,'volume':63,'issue':43,'start':77,'end':80},
+    'anystyle_references_from_grobid_refstrings':   {'reference':80,'title':72,'year':83,'authors':65,'editors':31,'publishers':49,'source':64,'volume':65,'issue':44,'start':78,'end':80},
+    'exparser_references_from_cermine_layout':      {'reference':63,'title':62,'year':70,'authors':56,'editors':24,'publishers':40,'source':57,'volume':60,'issue':46,'start':62,'end':64},
+    'matched_references_from_sowiport':             {'reference':99,'title':99,'year':99,'authors':99,'editors':99,'publishers':99,'source':99,'volume':99,'issue':99,'start':99,'end':99},
+    'matched_references_from_crossref':             {'reference':99,'title':99,'year':99,'authors':99,'editors':99,'publishers':99,'source':99,'volume':99,'issue':99,'start':99,'end':99},
+    'matched_references_from_dnb':                  {'reference':99,'title':99,'year':99,'authors':99,'editors':99,'publishers':99,'source':99,'volume':99,'issue':99,'start':99,'end':99},
+    'matched_references_from_openalex':             {'reference':99,'title':99,'year':99,'authors':99,'editors':99,'publishers':99,'source':99,'volume':99,'issue':99,'start':99,'end':99},
+    'matched_references_from_ssoar':                {'reference':99,'title':99,'year':99,'authors':99,'editors':99,'publishers':99,'source':99,'volume':99,'issue':99,'start':99,'end':99},
+    'matched_references_from_arxiv':                {'reference':99,'title':99,'year':99,'authors':99,'editors':99,'publishers':99,'source':99,'volume':99,'issue':99,'start':99,'end':99},
+    'matched_references_from_econbiz':              {'reference':99,'title':99,'year':99,'authors':99,'editors':99,'publishers':99,'source':99,'volume':99,'issue':99,'start':99,'end':99},
+    'matched_references_from_gesis_bib':            {'reference':99,'title':99,'year':99,'authors':99,'editors':99,'publishers':99,'source':99,'volume':99,'issue':99,'start':99,'end':99},
+    'matched_references_from_research_data':        {'reference':99,'title':99,'year':99,'authors':99,'editors':99,'publishers':99,'source':99,'volume':99,'issue':99,'start':99,'end':99}
 }
 
 #-------------------------------------------------------------------------------------------------------------------------------------------------
@@ -153,17 +163,17 @@ def consolidate_references(index,duplicateIDs=[]):
         editorss                    = [reference['editors'   ] if 'editors'    in reference else None for reference in references];
         publisherss                 = [reference['publishers'] if 'publishers' in reference else None for reference in references];
         reference_new               = {'individual':{},'num_duplicates':len(references)};
-        matches                     = {target:[reference[target+'_id'] for reference in references if target+'_id' in reference] for target in _priority};
+        matches                     = {target:[reference[target+'_id'] if target+'_id' in reference else None for reference in references] for target in _priority};
         for field,value in [('id',duplicateID),('toCollection',target_collection),('toID',url),('reference',refstring),('volume',volume),('issue',issue),('year',year),('start',start),('end',end),('title',title),('source',source),('place',place),('authors',authors),('editors',editors),('publishers',publishers)]:
             reference_new[field] = value;
         for field,value in [('individual_matches_'+target,matches[target]) for target in _priority]+[('individual_volumes',volumes),('individual_issues',issues),('individual_years',years),('individual_starts',starts),('individual_ends',ends),('individual_refstrings',refstrings),('individual_titles',titles),('individual_sources',sources),('individual_places',places),('individual_author_lists',authorss),('individual_editor_lists',editorss),('individual_publisher_lists',publisherss)]:
             reference_new['individual'][field] = value;
         reference_new['ids'] = [reference['id'] for reference in references];
         for target in _priority:
-            reference_new[    'matches_'+target] = list(set(matches[target]));
+            reference_new[    'matches_'+target] = list(set([match for match in matches[target] if match]));
             reference_new['num_matches_'+target] = len(reference_new['matches_'+target]);
             reference_new['has_matches_'+target] = reference_new['num_matches_'+target] > 0;
-        reference_new['matches'] = list(set([match for target in _priority for match in matches[target]]));
+        reference_new['matches']     = list(set([match for target in _priority for match in matches[target] if match]));
         reference_new['num_matches'] = len(reference_new['matches']);
         reference_new['has_matches'] = reference_new['num_matches'] > 0;
         yield duplicateID,reference_new;

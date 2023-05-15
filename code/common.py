@@ -81,6 +81,8 @@ def update_references(index,fromField,toField,label_func,featypes,ngrams_n,args,
         for i in range(len(refs)):
             body                            = copy(body);
             body['_id']                     = refs[i]['id'];
+            if refs[i]['block_id']==238:
+                print('...for', refs[i]['id'])
             body['_source']['doc'][toField] = str(refs[i][fromField])+'_'+str(labelling[i]);
             yield body;
 
@@ -169,7 +171,7 @@ def get_by_fieldvalue(field,ID,index):
     client.clear_scroll(scroll_id=sid);
 
 def get_features(reference):
-    refstring  = reference['reference'];
+    refstring  = reference['reference']   if 'reference'   in reference else None;
     sowiportID = reference['sowiport_id'] if 'sowiport_id' in reference else None;
     crossrefID = reference['crossref_id'] if 'crossref_id' in reference else None;
     dnbID      = reference['dnb_id']      if 'dnb_id'      in reference else None;
@@ -326,7 +328,9 @@ def get_clusters(M,refs,index2feat,similarities,thresholds,XF_type,FF_type,FX_ty
             m1,m2,equiv,_  = samples[j];
             samples[j][-1]['all'] = SIM_all[m1,m2];
         for threshold in thresholds[i]:
-            EQUIV           = SIM_all > threshold; #print(EQUIV.sum(),'equivalent pairs before transitive closure');
+            EQUIV           = SIM_all > threshold;
+            if refs[i]['block_id']==238:
+                print(SIM_all)#print(EQUIV.sum(),'equivalent pairs before transitive closure');
             n_comps, labels = components(csgraph=EQUIV, directed=False, return_labels=True);
             if len(labels) != len(refs):
                 print('\nERROR: Different number of labels than references:',len(labels),'vs.',len(refs));

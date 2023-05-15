@@ -23,7 +23,15 @@ _refobjs = [    'anystyle_references_from_cermine_fulltext',
                 'cermine_references_from_cermine_xml',          #                'anystyle_references_from_gold_refstrings',
                 'cermine_references_from_grobid_refstrings',    #                'cermine_references_from_gold_refstrings',
                 'grobid_references_from_grobid_xml',
-                'exparser_references_from_cermine_layout' ];
+                'exparser_references_from_cermine_layout',
+                'matched_references_from_sowiport',
+                'matched_references_from_crossref',
+                'matched_references_from_dnb',
+                'matched_references_from_openalex',
+                'matched_references_from_ssoar',
+                'matched_references_from_arxiv',
+                'matched_references_from_econbiz',
+                'matched_references_from_gesis_bib' ];
 
 _id_field = 'id' if _index=='users' else '@id';
 #-------------------------------------------------------------------------------------------------------------------------------------------------
@@ -43,8 +51,8 @@ def get_references(index,refobj):
             if refobj in doc['_source'] and isinstance(doc['_source'][refobj],list):
                 for i in range(len(doc['_source'][refobj])):
                     fromID     = doc['_source'][_id_field];
-                    linkID     = refobj+'_'+fromID+'_ref_'+str(i);
                     reference  = doc['_source'][refobj][i];
+                    linkID     = refobj+'_'+fromID+'_ref_'+str(i) if not refobj.startswith('matched_references_from_') else reference[refobj[24:]+'_id'];
                     sowiportID = reference['sowiport_id']      if 'sowiport_id'      in reference else None;
                     crossrefID = reference['crossref_id']      if 'crossref_id'      in reference else None;
                     dnbID      = reference['dnb_id']           if 'dnb_id'           in reference else None;

@@ -43,6 +43,8 @@ _featypes = {   'refstring':    'ngrams',  #words #wordgrams #None
                 'e1first':      'ngrams',
                 'publisher1':   'ngrams' }
 
+_target_collections = ['sowiport','crossref','dnb','openalex','ssoar','arxiv','econbiz','gesis_bib','research_data'];
+
 _min_title_sim  = 0.75;
 _min_author_sim = 0.5;
 
@@ -72,6 +74,10 @@ def pairwise_classifier(M,refs,featsOf,config):
     return N;
 
 def is_equivalent(ref1,ref2,config):
+    #-----------------------------------------------------------------------------------------------------------------------------------------------
+    for target_collection in _target_collections:
+        if target_collection+'_id' in ref1 and target_collection+'_id' in ref2 and ref1[target_collection+'_id']==ref2[target_collection+'_id']:
+            return True;
     #-----------------------------------------------------------------------------------------------------------------------------------------------
     if 'year' in ref1 and 'year' in ref2 and isinstance(ref1['year'],int) and isinstance(ref2['year'],int) and abs(ref1['year']-ref2['year'])>1:
         print('year too different:',ref1['year'],' | vs | ',ref2['year']);

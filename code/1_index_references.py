@@ -19,12 +19,21 @@ _original = True;  # Using the _original fields if available (can be used to get
 _refobjs = [    'anystyle_references_from_cermine_fulltext',
                 'anystyle_references_from_cermine_refstrings',
                 'anystyle_references_from_grobid_fulltext',
-                'anystyle_references_from_grobid_refstrings',   #                'anystyle_references_from_gold_fulltext',
-                'anystyle_references_from_pdftotext_fulltext',
+                'anystyle_references_from_grobid_refstrings',
+                'anystyle_references_from_pdftotext_fulltext',   #                'anystyle_references_from_gold_fulltext',
                 'cermine_references_from_cermine_xml',          #                'anystyle_references_from_gold_refstrings',
                 'cermine_references_from_grobid_refstrings',    #                'cermine_references_from_gold_refstrings',
                 'grobid_references_from_grobid_xml',
-                'exparser_references_from_cermine_layout' ];
+                'exparser_references_from_cermine_layout',
+                'matched_references_from_sowiport',
+                'matched_references_from_crossref',
+                'matched_references_from_dnb',
+                'matched_references_from_openalex',
+                'matched_references_from_ssoar',
+                'matched_references_from_arxiv',
+                'matched_references_from_econbiz',
+                'matched_references_from_gesis_bib',
+                'matched_references_from_research_data' ];
 
 _body = { '_op_type': 'index',
           '_index':   _out_index,
@@ -48,9 +57,9 @@ def get_references(index):
             for refobj in _refobjs:
                 if refobj in doc['_source'] and isinstance(doc['_source'][refobj],list):
                     for i in range(len(doc['_source'][refobj])):
-                        reference               = doc['_source'][refobj][i];
                         fromID                  = doc['_source']['@id'];
-                        linkID                  = refobj+'_'+fromID+'_ref_'+str(i);
+                        reference               = doc['_source'][refobj][i];
+                        linkID                  = refobj+'_'+fromID+'_ref_'+str(i) if not refobj.startswith('matched_references_from_') else reference[refobj[24:]+'_id'];
                         reference['id']         = linkID;
                         reference['pipeline']   = refobj;
                         reference['fromID']     = fromID;

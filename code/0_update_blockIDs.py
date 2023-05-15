@@ -25,12 +25,21 @@ _id_field = "block_id"
 _refobjs = [    'anystyle_references_from_cermine_fulltext',
                 'anystyle_references_from_cermine_refstrings',
                 'anystyle_references_from_grobid_fulltext',
-                'anystyle_references_from_grobid_refstrings',   #                'anystyle_references_from_gold_fulltext',
-                'anystyle_references_from_pdftotext_fulltext',
-                'cermine_references_from_cermine_xml',   #                'anystyle_references_from_gold_refstrings',
+                'anystyle_references_from_grobid_refstrings',
+                'anystyle_references_from_pdftotext_fulltext',   #                'anystyle_references_from_gold_fulltext',
+                'cermine_references_from_cermine_xml',          #                'anystyle_references_from_gold_refstrings',
                 'cermine_references_from_grobid_refstrings',    #                'cermine_references_from_gold_refstrings',
                 'grobid_references_from_grobid_xml',
-                'exparser_references_from_cermine_layout' ];
+                'exparser_references_from_cermine_layout',
+                'matched_references_from_sowiport',
+                'matched_references_from_crossref',
+                'matched_references_from_dnb',
+                'matched_references_from_openalex',
+                'matched_references_from_ssoar',
+                'matched_references_from_arxiv',
+                'matched_references_from_econbiz',
+                'matched_references_from_gesis_bib',
+                'matched_references_from_research_data' ];
 
 _ids = None;
 
@@ -40,7 +49,7 @@ _ids = None;
 def get_blockID(refobjects,id_field,pipeline,docid,cur):
     labels = [];
     for i in range(len(refobjects)):
-        mentionID = pipeline+'_'+docid+'_ref_'+str(i);
+        mentionID = pipeline+'_'+docid +'_ref_'+str(i) if not pipeline.startswith('matched_references_from_') else refobjects[i][pipeline[24:]+'_id'];
         rows      = cur.execute("SELECT label FROM mentions WHERE mentionID=?",(mentionID,)).fetchall();
         label     = rows[0][0] if len(rows) >= 1 else None;
         if label != None:
