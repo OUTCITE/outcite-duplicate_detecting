@@ -16,24 +16,25 @@ _chunk_size    = 100;
 
 _original = True;  # Using the _original fields if available (can be used to get back the original references after duplicate detection has already been applied)
 
-_refobjs = [    'anystyle_references_from_cermine_fulltext',
-                'anystyle_references_from_cermine_refstrings',
-                'anystyle_references_from_grobid_fulltext',
+_refobjs = [    #'anystyle_references_from_cermine_fulltext',
+                #'anystyle_references_from_cermine_refstrings',
+                #'anystyle_references_from_grobid_fulltext',
                 'anystyle_references_from_grobid_refstrings',
-                'anystyle_references_from_pdftotext_fulltext',   #                'anystyle_references_from_gold_fulltext',
-                'cermine_references_from_cermine_xml',          #                'anystyle_references_from_gold_refstrings',
-                'cermine_references_from_grobid_refstrings',    #                'cermine_references_from_gold_refstrings',
-                'grobid_references_from_grobid_xml',
-                'exparser_references_from_cermine_layout',
-                'matched_references_from_sowiport',
-                'matched_references_from_crossref',
-                'matched_references_from_dnb',
-                'matched_references_from_openalex',
-                'matched_references_from_ssoar',
-                'matched_references_from_arxiv',
-                'matched_references_from_econbiz',
-                'matched_references_from_gesis_bib',
-                'matched_references_from_research_data' ];
+                #'anystyle_references_from_pdftotext_fulltext',   #                'anystyle_references_from_gold_fulltext',
+                #'cermine_references_from_cermine_xml',          #                'anystyle_references_from_gold_refstrings',
+                #'cermine_references_from_grobid_refstrings',    #                'cermine_references_from_gold_refstrings',
+                #'grobid_references_from_grobid_xml',
+                #'exparser_references_from_cermine_layout',
+                #'matched_references_from_sowiport',
+                #'matched_references_from_crossref',
+                #'matched_references_from_dnb',
+                #'matched_references_from_openalex',
+                #'matched_references_from_ssoar',
+                #'matched_references_from_arxiv',
+                #'matched_references_from_econbiz',
+                #'matched_references_from_gesis_bib',
+                #'matched_references_from_research_data'
+            ];
 
 _body = { '_op_type': 'index',
           '_index':   _out_index,

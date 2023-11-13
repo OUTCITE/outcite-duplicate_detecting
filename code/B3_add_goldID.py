@@ -11,7 +11,7 @@ _outdb = sys.argv[2]; # The features DB
 con = sqlite3.connect(_indb);
 cur = con.cursor();
 
-_id_fields = ['sowiport','crossref','dnb','openalex','arxiv','ssoar','research_data','gesis_bib'];
+_id_fields = ['sowiport','crossref','dnb','openalex','econbiz','arxiv','ssoar','research_data','gesis_bib'];
 
 print("Getting rows...");
 rows = cur.execute("SELECT linkID,"+','.join([id_field+'ID' for id_field in _id_fields])+" FROM refmetas WHERE "+' OR '.join([id_field+'ID IS NOT NULL' for id_field in _id_fields])).fetchall();

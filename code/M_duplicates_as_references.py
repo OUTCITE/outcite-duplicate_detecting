@@ -36,7 +36,7 @@ _refobjs = [    'anystyle_references_from_cermine_fulltext',
                 'grobid_references_from_grobid_xml',
                 'exparser_references_from_cermine_layout' ];
 
-_fields = ['reference','volume','issue','year','start','end','title','source','place','authors','editors','publishers'];
+_fields = ['reference','volume','issue','year','start','end','title','source','place','type','authors','editors','publishers','matches'];
 
 _scr_query = { "ids": { "values": _ids } } if _ids else {'bool':{'must_not':{'term':{'has_duplicates': True}}}} if not _recheck else {'match_all':{}};
 
@@ -87,6 +87,9 @@ def update_docs(index,index_m,fields): #TODO: Test
                         dupIDs.add(dupIDs_[i]);
                         dup_refobjects.append(new_refobjects[i]);
             body['_source']['doc'][_dup_refobj] = dup_refobjects;
+            body['_source']['doc']['num_merged_references']       = len(dup_refobjects);
+            body['_source']['doc']['has_merged_references']       = len(dup_refobjects) > 0;
+            body['_source']['doc']['processed_merged_references'] = True;
             #------------------------------------------------------------------------------------------------------------------------------
                 #print(refobj,'=> Updating references of',body['_id'],'by attributes of duplicates',[refobject['id']+' --> '+str(refobject['duplicate_id']) for refobject in new_refobjects if 'duplicate_id' in refobject]);
             yield body;

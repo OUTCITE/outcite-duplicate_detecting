@@ -13,7 +13,7 @@ from common import *
 _index            = sys.argv[1];#'references'; #'references_geocite' #'references_ssoar_gold'
 _out_index        = sys.argv[2];#'duplicates'; #'duplicates_geocite' #'duplicates_ssoar_gold'
 
-_priority = ['ssoar','research_data','gesis_bib','sowiport','crossref','dnb','openalex','arxiv','bing'];
+_priority = ['ssoar','research_data','gesis_bib','sowiport','econbiz','crossref','dnb','openalex','arxiv','bing'];
 
 SEPS = re.compile(r'[^A-Za-zßäöü]');
 WORD = re.compile(r'[A-Za-zßäöü]{2,}');
@@ -98,7 +98,7 @@ def clean_int(reference,field,lower,upper): #TODO: This may always return None
     return reference;
 
 def majority_vote(references,fields):
-    values = [tuple([reference[field] for field in fields]) for reference in references];
+    values = [tuple([reference[field] for field in fields]) for reference in references]; #TODO: What if reference[field] is a list?
     freqOf = Counter(values);
     suppOf = Counter(); # Not actually support, but the opposite
     for key in freqOf:
@@ -110,7 +110,36 @@ def majority_vote(references,fields):
     #    print(key,':',suppOf[key]);
     return max(suppOf,key=suppOf.get) if len(suppOf)>0 else tuple([None for field in fields]);
 
-def majority_vote_(references,fields):
+def majority_name(names,fields):
+    for i in range(len(names)):
+        for key in names[i]:
+            if isinstance(names[i][key],str):
+                names[i][key] = [names[i][key]];
+    dicts = [{field+'_'+str(i):reference[field][i] for field in reference if reference[field] for i in range(len(reference[field]))} for reference in names];
+    values = [tuple([d[field] if field in d else None for field in fields]) for d in dicts];
+    freqOf = Counter(values);
+    suppOf = Counter(); # Not actually support, but the opposite
+    for key in freqOf:
+        for key_ in freqOf:
+            check = sum([key[i]==None or key_[i]==None or key[i].lower()==key_[i].lower() for i in range(len(fields))]);
+            if check == len(fields):
+                suppOf[key_] += freqOf[key];
+    representative = max(suppOf,key=suppOf.get) if len(suppOf)>0 else tuple([None for field in fields]);
+    dictionary     = dict(); #TODO: Should be possible to shorten the below lines substantially
+    for i in range(len(fields)):
+        if representative[i]:
+            key = fields[i][:-2];
+            if key in dictionary:
+                if key in ['initials','firstnames']:
+                    dictionary[key].append(representative[i]);
+            else:
+                if key in ['initials','firstnames']:
+                    dictionary[key] = [representative[i]];
+                else:
+                    dictionary[key] = representative[i];
+    return dictionary;
+
+def majority_vote_(references,fields): #TODO: Can probably be removed
     references_ = [];
     for reference in references:
         for field in fields:
@@ -120,9 +149,6 @@ def majority_vote_(references,fields):
     values  = [tuple([reference[field] for field in fields]) for reference in references_];
     counter = Counter(values);
     counts  = sorted([(counter[key],key,) for key in counter],key=lambda x:x[0]);
-    #for freq,key in counts:
-    #    print(key,':',freq);
-    #freqs = Counter(values);
     return max(values,key=values.count) if len(values) > 0 else tuple([None for field in fields]);
 
 def best_url(references):
@@ -141,12 +167,16 @@ def consolidate_references(index,duplicateIDs=[]):
         for i in range(len(references)):
             for field,lower,upper in [('volume',1,1000),('issue',1,1000),('year',1500,YEAR),('start',1,references[i]['end'] if 'end' in references[i] else None),('end',references[i]['start'] if 'start' in references[i] else None,10000)]:
                 references[i] = clean_int(references[i],field,lower,upper);
+        #[majority_name([reference['authors'][i] for reference in references if 'authors' in reference and len(reference['authors'])>i],['author_string_0','surname_0','initials_0','initials_1','initials_2','firstnames_0','firstnames_1','firstnames_2']) for i in range(50)];
         volume,issue,year,start,end = majority_vote(references,['volume','issue','year','start','end']); #print('====>',volume,issue,year,start,end) # These all correlate so to speak
         refstring                   = best_representative(references,'reference' ,0.75); #TODO: This should never become null
         title                       = best_representative(references,'title'     ,0.75); #TODO: This should never become null
         source                      = best_representative(references,'source'    ,0.30);
         place                       = best_representative(references,'place'     ,0.50); # Might correlate with the publication info (volume, etc.) but there could still be variations of the same place
-        authors                     = best_representative(references,'authors'   ,0.30); #TODO: This should never become null
+        typ                         = best_representative(references,'type'      ,0.50);
+        max_num_authors             = max([len(reference['authors']) if 'authors' in reference and reference['authors'] else 0 for reference in references]);
+        #authors                     = best_representative(references,'authors'   ,0.30); #TODO: This should never become null
+        authors                     = [majority_name([reference['authors'][i] for reference in references if 'authors' in reference and reference['authors'] and len(reference['authors'])>i],['author_string_0','surname_0','initials_0','initials_1','initials_2','firstnames_0','firstnames_1','firstnames_2']) for i in range(max_num_authors)];
         editors                     = best_representative(references,'editors'   ,0.30);
         publishers                  = best_representative(references,'publishers',0.30);
         target_collection, url      = best_url(references);
@@ -159,14 +189,15 @@ def consolidate_references(index,duplicateIDs=[]):
         titles                      = [reference['title'     ] if 'title'      in reference else None for reference in references];
         sources                     = [reference['source'    ] if 'source'     in reference else None for reference in references];
         places                      = [reference['place'     ] if 'place'      in reference else None for reference in references];
+        types                       = [reference['type'      ] if 'type'       in reference else None for reference in references];
         authorss                    = [reference['authors'   ] if 'authors'    in reference else None for reference in references];
         editorss                    = [reference['editors'   ] if 'editors'    in reference else None for reference in references];
         publisherss                 = [reference['publishers'] if 'publishers' in reference else None for reference in references];
         reference_new               = {'individual':{},'num_duplicates':len(references)};
         matches                     = {target:[reference[target+'_id'] if target+'_id' in reference else None for reference in references] for target in _priority};
-        for field,value in [('id',duplicateID),('toCollection',target_collection),('toID',url),('reference',refstring),('volume',volume),('issue',issue),('year',year),('start',start),('end',end),('title',title),('source',source),('place',place),('authors',authors),('editors',editors),('publishers',publishers)]:
+        for field,value in [('id',duplicateID),('toCollection',target_collection),('toID',url),('reference',refstring),('volume',volume),('issue',issue),('year',year),('start',start),('end',end),('title',title),('source',source),('place',place),('type',typ),('authors',authors),('editors',editors),('publishers',publishers)]:
             reference_new[field] = value;
-        for field,value in [('individual_matches_'+target,matches[target]) for target in _priority]+[('individual_volumes',volumes),('individual_issues',issues),('individual_years',years),('individual_starts',starts),('individual_ends',ends),('individual_refstrings',refstrings),('individual_titles',titles),('individual_sources',sources),('individual_places',places),('individual_author_lists',authorss),('individual_editor_lists',editorss),('individual_publisher_lists',publisherss)]:
+        for field,value in [('individual_matches_'+target,matches[target]) for target in _priority]+[('individual_volumes',volumes),('individual_issues',issues),('individual_years',years),('individual_starts',starts),('individual_ends',ends),('individual_refstrings',refstrings),('individual_titles',titles),('individual_sources',sources),('individual_places',places),('individual_types',types),('individual_author_lists',authorss),('individual_editor_lists',editorss),('individual_publisher_lists',publisherss)]:
             reference_new['individual'][field] = value;
         reference_new['ids'] = [reference['id'] for reference in references];
         for target in _priority:

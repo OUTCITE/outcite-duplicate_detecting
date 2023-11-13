@@ -34,7 +34,7 @@ _refobjs = [    'anystyle_references_from_cermine_fulltext',
                 'grobid_references_from_grobid_xml',
                 'exparser_references_from_cermine_layout' ];
 
-_fields = ['reference','volume','issue','year','start','end','title','source','place','authors','editors','publishers'];
+_fields = ['reference','volume','issue','year','start','end','title','source','place','type','authors','editors','publishers'];
 
 _scr_query = { "ids": { "values": _ids } } if _ids else {'bool':{'must_not':{'term':{'has_duplicate_ids': True}}}} if not _recheck else {'match_all':{}};
 
