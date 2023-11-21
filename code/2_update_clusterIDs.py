@@ -8,8 +8,16 @@ from common import *
 #-GLOBAL OBJECTS----------------------------------------------------------------------------------------------------------------------------------
 _index            = sys.argv[1];#'references';
 
-_chunk_size       =  250;
-_request_timeout  =   60;
+IN = None;
+try:
+    IN = open(str((Path(__file__).parent / '../code/').resolve())+'/configs_custom.json');
+except:
+    IN = open(str((Path(__file__).parent / '../code/').resolve())+'/configs.json');
+_configs = json.load(IN);
+IN.close();
+
+_chunk_size       =  _configs['chunk_size_clusters'];
+_request_timeout  =  _configs['request_timeout_clusters'];
 
 _featypes = {   'refstring':    'ngrams',  #words #wordgrams #None
                 'sowiportID':   False,

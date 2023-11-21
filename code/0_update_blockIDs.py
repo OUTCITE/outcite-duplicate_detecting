@@ -11,37 +11,28 @@ from elasticsearch.helpers import streaming_bulk as bulk
 _index  = sys.argv[1]; #'geocite' #'ssoar'
 _dup_db = sys.argv[2];#"/home/outcite/duplicate_detecting/resources/mention_labels.db"
 
-_chunk_size       =  250;
-_max_scroll_tries =    2;
-_scroll_size      =  500;
-_request_timeout  =   60;
-_max_extract_time =    1; #minutes
+IN = None;
+try:
+    IN = open(str((Path(__file__).parent / '../code/').resolve())+'/configs_custom.json');
+except:
+    IN = open(str((Path(__file__).parent / '../code/').resolve())+'/configs.json');
+_configs = json.load(IN);
+IN.close();
 
-_recheck = True;
+_chunk_size       = _configs['chunk_size_blocks'];
+_max_scroll_tries = _configs['max_scroll_tries_blocks'];
+_scroll_size      = _configs['scroll_size_blocks'];
+_request_timeout  = _configs['request_timeout_blocks'];
+_max_extract_time = _configs['max_extract_time_blocks']; #minutes
 
-_field    = "block_ids"
-_id_field = "block_id"
+_recheck = _configs['recheck_blocks'];
 
-_refobjs = [    'anystyle_references_from_cermine_fulltext',
-                'anystyle_references_from_cermine_refstrings',
-                'anystyle_references_from_grobid_fulltext',
-                'anystyle_references_from_grobid_refstrings',
-                'anystyle_references_from_pdftotext_fulltext',   #                'anystyle_references_from_gold_fulltext',
-                'cermine_references_from_cermine_xml',          #                'anystyle_references_from_gold_refstrings',
-                'cermine_references_from_grobid_refstrings',    #                'cermine_references_from_gold_refstrings',
-                'grobid_references_from_grobid_xml',
-                'exparser_references_from_cermine_layout',
-                'matched_references_from_sowiport',
-                'matched_references_from_crossref',
-                'matched_references_from_dnb',
-                'matched_references_from_openalex',
-                'matched_references_from_ssoar',
-                'matched_references_from_arxiv',
-                'matched_references_from_econbiz',
-                'matched_references_from_gesis_bib',
-                'matched_references_from_research_data' ];
+_refobjs = _configs['refobjs'];
 
-_ids = None;
+_ids = _configs['ids'];
+
+_field    = "block_ids";
+_id_field = "block_id";
 
 #-------------------------------------------------------------------------------------------------------------------------------------------------
 #-FUNCTIONS---------------------------------------------------------------------------------------------------------------------------------------

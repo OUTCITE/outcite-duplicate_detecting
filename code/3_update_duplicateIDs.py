@@ -12,23 +12,32 @@ from common import *
 #-GLOBAL OBJECTS----------------------------------------------------------------------------------------------------------------------------------
 _index = sys.argv[1];#'references';
 
-_chunk_size      =  250;
-_request_timeout =   60;
+IN = None;
+try:
+    IN = open(str((Path(__file__).parent / '../code/').resolve())+'/configs_custom.json');
+except:
+    IN = open(str((Path(__file__).parent / '../code/').resolve())+'/configs.json');
+_configs = json.load(IN);
+IN.close();
 
-_ngrams_n   = 3;
-_configs    = [None];
-_dateweight = 250;
+_chunk_size      =  _configs['chunk_size_duplicates'];
+_request_timeout =  _configs['request_timeout_duplicates'];
 
-_threshold      = 0.25;
-_max_title_diff = 0.5;
-_thr_prec       = 0.85;
+_ngrams_n   = _configs['ngrams_n'];
+_dateweight = _configs['dateweight'];
 
-_min_title_sim  = 0.75;
-_min_author_sim = 0.5;
+_threshold      = _configs['threshold'];
+_max_title_diff = _configs['max_title_diff'];
+_thr_prec       = _configs['thr_prec'];
 
-GARBAGE   = re.compile(r'\W')#re.compile(r'[\x00-\x1f\x7f-\x9f]|(-\s+)');
-NAMESEP   = re.compile(r'\W');
-YEAR      = re.compile(r'1[5-9][0-9]{2}|20(0[0-9]|1[0-9]|2[0-3])'); #1500--2023
+_min_title_sim  = _configs['min_title_sim'];
+_min_author_sim = _configs['min_author_sim'];
+
+GARBAGE   = re.compile(_configs['regex_garbage'])#re.compile(r'[\x00-\x1f\x7f-\x9f]|(-\s+)');
+NAMESEP   = re.compile(_configs['regex_namesep']);
+YEAR      = re.compile(_configs['regex_year']); #1500--2023
+
+_target_collections = _configs['targets'];
 
 _featypes = {   'refstring':    'ngrams',  #words #wordgrams #None
                 'sowiportID':   False,
@@ -56,8 +65,6 @@ _featypes = {   'refstring':    'ngrams',  #words #wordgrams #None
                 'e1init':       None,
                 'e1first':      'ngrams',
                 'publisher1':   'ngrams' }
-
-_target_collections = ['sowiport','crossref','dnb','openalex','ssoar','arxiv','econbiz','gesis_bib','research_data'];
 
 _transformap = [ ('reference', "source['reference']"),
                  ('year',      "source['year']"),
@@ -276,7 +283,7 @@ def is_equivalent_(ref1,ref2,config):
 _client = ES(['http://localhost:9200'],timeout=60);#ES(['localhost'],scheme='http',port=9200,timeout=60);
 
 i = 0;
-for success, info in bulk(_client,update_references(_index,'cluster_id','duplicate_id',get_duplicates,_featypes,_ngrams_n,[_configs],True),chunk_size=_chunk_size, request_timeout=_request_timeout):
+for success, info in bulk(_client,update_references(_index,'cluster_id','duplicate_id',get_duplicates,_featypes,_ngrams_n,[None],True),chunk_size=_chunk_size, request_timeout=_request_timeout):
     i += 1;
     if not success:
         print('\n[!]-----> A document failed:', info['index']['_id'], info['index']['error'],'\n');

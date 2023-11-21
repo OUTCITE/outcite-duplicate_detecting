@@ -15,13 +15,21 @@ from sklearn.cluster import DBSCAN
 #-------------------------------------------------------------------------------------------------------------------------------------------------
 #-GLOBAL OBJECTS----------------------------------------------------------------------------------------------------------------------------------
 
-_max_scroll_tries =    2;
-_scroll_size      =  500;
-_max_extract_time =    1; #minutes
+IN = None;
+try:
+    IN = open(str((Path(__file__).parent / '../code/').resolve())+'/configs_custom.json');
+except:
+    IN = open(str((Path(__file__).parent / '../code/').resolve())+'/configs.json');
+_configs = json.load(IN);
+IN.close();
 
-WORD = re.compile(r'[A-Za-zßäöü]{2,}');
+_max_scroll_tries = _configs['max_scroll_tries'];
+_scroll_size      = _configs['scroll_size'];
+_max_extract_time = _configs['max_extract_time']; #minutes
 
-_DBSCAN = False;
+WORD = re.compile(_configs['regex_word']); #r'[A-Za-zßäöü]{2,}');
+
+_DBSCAN = _configs['dbscan'];
 
 #-------------------------------------------------------------------------------------------------------------------------------------------------
 #-FUNCTIONS---------------------------------------------------------------------------------------------------------------------------------------

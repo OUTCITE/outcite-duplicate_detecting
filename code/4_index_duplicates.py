@@ -13,10 +13,20 @@ from common import *
 _index            = sys.argv[1];#'references'; #'references_geocite' #'references_ssoar_gold'
 _out_index        = sys.argv[2];#'duplicates'; #'duplicates_geocite' #'duplicates_ssoar_gold'
 
-_priority = ['ssoar','research_data','gesis_bib','sowiport','econbiz','crossref','dnb','openalex','arxiv','bing'];
+IN = None;
+try:
+    IN = open(str((Path(__file__).parent / '../code/').resolve())+'/configs_custom.json');
+except:
+    IN = open(str((Path(__file__).parent / '../code/').resolve())+'/configs.json');
+_configs = json.load(IN);
+IN.close();
 
-SEPS = re.compile(r'[^A-Za-zßäöü]');
-WORD = re.compile(r'[A-Za-zßäöü]{2,}');
+_priority = _configs['targets'];
+_GESIS    = _configs['gesis'];
+
+SEPS = re.compile(_configs['regex_seps']); #r'[^A-Za-zßäöü]');
+WORD = re.compile(_configs['regex_word']); #r'[A-Za-zßäöü]{2,}');
+
 YEAR = date.today().year;
 
 _body = { '_op_type': 'index',
@@ -151,11 +161,11 @@ def majority_vote_(references,fields): #TODO: Can probably be removed
     counts  = sorted([(counter[key],key,) for key in counter],key=lambda x:x[0]);
     return max(values,key=values.count) if len(values) > 0 else tuple([None for field in fields]);
 
-def best_url(references):
+def best_url(references,target_collections):
     url  = None;
-    urls = {target_collection:[reference[target_collection+'_url'] for reference in references if target_collection+'_url' in reference and reference[target_collection+'_url']] for target_collection in _priority}
+    urls = {target_collection:[reference[target_collection+'_url'] for reference in references if target_collection+'_url' in reference and reference[target_collection+'_url']] for target_collection in target_collections}
     maxs = {target_collection:max(urls[target_collection],key=urls[target_collection].count) for target_collection in urls if urls[target_collection]};
-    for target_collection in _priority:
+    for target_collection in target_collections:
         if target_collection in maxs:
             return target_collection, maxs[target_collection];
     return None, None
@@ -179,7 +189,9 @@ def consolidate_references(index,duplicateIDs=[]):
         authors                     = [majority_name([reference['authors'][i] for reference in references if 'authors' in reference and reference['authors'] and len(reference['authors'])>i],['author_string_0','surname_0','initials_0','initials_1','initials_2','firstnames_0','firstnames_1','firstnames_2']) for i in range(max_num_authors)];
         editors                     = best_representative(references,'editors'   ,0.30);
         publishers                  = best_representative(references,'publishers',0.30);
-        target_collection, url      = best_url(references);
+        target_collection, top_url  = best_url(references,_priority);
+        _,pdf_url                   = best_url(references,['fulltext']);
+        _,general_url               = best_url(references,['general']);
         volumes                     = [reference['volume'    ] if 'volume'     in reference else None for reference in references];
         issues                      = [reference['issue'     ] if 'issue'      in reference else None for reference in references];
         years                       = [reference['year'      ] if 'year'       in reference else None for reference in references];
@@ -194,19 +206,28 @@ def consolidate_references(index,duplicateIDs=[]):
         editorss                    = [reference['editors'   ] if 'editors'    in reference else None for reference in references];
         publisherss                 = [reference['publishers'] if 'publishers' in reference else None for reference in references];
         reference_new               = {'individual':{},'num_duplicates':len(references)};
-        matches                     = {target:[reference[target+'_id'] if target+'_id' in reference else None for reference in references] for target in _priority};
-        for field,value in [('id',duplicateID),('toCollection',target_collection),('toID',url),('reference',refstring),('volume',volume),('issue',issue),('year',year),('start',start),('end',end),('title',title),('source',source),('place',place),('type',typ),('authors',authors),('editors',editors),('publishers',publishers)]:
+        matches                     = {target:[ reference[target+'_id']                    if target+'_id'   in reference else None for reference in references] for target in _priority             };
+        URLs                        = {target:[ [url for url in reference[target+'_urls']] if target+'_urls' in reference else []   for reference in references] for target in ['fulltext','general']};
+        for field,value in [('id',duplicateID),('toCollection',target_collection if target_collection in _GESIS or not general_url else 'general'),('toID',top_url if target_collection in _GESIS or not general_url else general_url),('url_fulltext',pdf_url),('url_general',general_url),('reference',refstring),('volume',volume),('issue',issue),('year',year),('start',start),('end',end),('title',title),('source',source),('place',place),('type',typ),('authors',authors),('editors',editors),('publishers',publishers)]:
             reference_new[field] = value;
-        for field,value in [('individual_matches_'+target,matches[target]) for target in _priority]+[('individual_volumes',volumes),('individual_issues',issues),('individual_years',years),('individual_starts',starts),('individual_ends',ends),('individual_refstrings',refstrings),('individual_titles',titles),('individual_sources',sources),('individual_places',places),('individual_types',types),('individual_author_lists',authorss),('individual_editor_lists',editorss),('individual_publisher_lists',publisherss)]:
+        for field,value in [('individual_matches_'+target,matches[target]) for target in _priority] + [('individual_urls_'+target,URLs[target]) for target in ['fulltext','general']] + [('individual_url_fulltext',pdf_url),('individual_url_general',general_url),('individual_volumes',volumes),('individual_issues',issues),('individual_years',years),('individual_starts',starts),('individual_ends',ends),('individual_refstrings',refstrings),('individual_titles',titles),('individual_sources',sources),('individual_places',places),('individual_types',types),('individual_author_lists',authorss),('individual_editor_lists',editorss),('individual_publisher_lists',publisherss)]:
             reference_new['individual'][field] = value;
         reference_new['ids'] = [reference['id'] for reference in references];
         for target in _priority:
             reference_new[    'matches_'+target] = list(set([match for match in matches[target] if match]));
             reference_new['num_matches_'+target] = len(reference_new['matches_'+target]);
             reference_new['has_matches_'+target] = reference_new['num_matches_'+target] > 0;
+        print(URLs)
+        for target in ['fulltext','general']:
+            reference_new[    'urls_'+target] = list(set([url for urls in URLs[target] for url in urls]));
+            reference_new['num_urls_'+target] = len(reference_new['urls_'+target]);
+            reference_new['has_urls_'+target] = reference_new['num_urls_'+target] > 0;
         reference_new['matches']     = list(set([match for target in _priority for match in matches[target] if match]));
         reference_new['num_matches'] = len(reference_new['matches']);
         reference_new['has_matches'] = reference_new['num_matches'] > 0;
+        reference_new['urls']        = list(set([url for target in ['fulltext','general'] for urls in URLs[target] for url in urls]));
+        reference_new['num_urls'] = len(reference_new['urls']);
+        reference_new['has_urls'] = reference_new['num_urls'] > 0;
         yield duplicateID,reference_new;
 
 def get_duplicates(index):

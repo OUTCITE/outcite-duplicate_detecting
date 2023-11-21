@@ -10,31 +10,31 @@ from common import *
 _index     = sys.argv[1];
 _dup_index = sys.argv[2];
 
-_recheck = True;
-_ids     = [];
+IN = None;
+try:
+    IN = open(str((Path(__file__).parent / '../code/').resolve())+'/configs_custom.json');
+except:
+    IN = open(str((Path(__file__).parent / '../code/').resolve())+'/configs.json');
+_configs = json.load(IN);
+IN.close();
 
-_chunk_size       =  250;
-_request_timeout  =   60;
-_scroll_size      =  500;
-_max_extract_time =    1; #minutes
-_max_scroll_tries =    2;
+_recheck = _configs['recheck_references'];
+_ids     = _configs['ids'];
 
-_featyp, _ngrams_n         = 'ngrams', 3; #words #wordgrams #None #5
+_chunk_size       =  _configs['chunk_size_references'];
+_request_timeout  =  _configs['request_timeout_references'];
+_scroll_size      =  _configs['scroll_size_references'];
+_max_extract_time =  _configs['max_extract_time_references'];
+_max_scroll_tries =  _configs['max_scroll_tries_references'];
 
-_similarities, _thresholds = ['jaccard'], [[0.8]]; #jaccard #f1 #overlap #None
-_XF_type,_FF_type,_FX_type = 'PROB', 'PROB_thr', 'PROB';
+_featyp, _ngrams_n = _configs['featype'], _configs['ngrams_n']; #words #wordgrams #None #5
 
-_refobjs = [    'anystyle_references_from_cermine_fulltext',
-                'anystyle_references_from_cermine_refstrings',
-                'anystyle_references_from_grobid_fulltext',
-                'anystyle_references_from_grobid_refstrings',   #                'anystyle_references_from_gold_fulltext',
-                'anystyle_references_from_pdftotext_fulltext',
-                'cermine_references_from_cermine_xml',          #                'anystyle_references_from_gold_refstrings',
-                'cermine_references_from_grobid_refstrings',#,    #                'cermine_references_from_gold_refstrings',
-                'grobid_references_from_grobid_xml',
-                'exparser_references_from_cermine_layout' ];
+_similarities, _thresholds = _configs['similarities'], _configs['thresholds']; #jaccard #f1 #overlap #None
+_XF_type,_FF_type,_FX_type = _configs['XF_type'], _configs['FF_type'], _configs['FX_type'];
 
-_fields = ['reference','volume','issue','year','start','end','title','source','place','type','authors','editors','publishers'];
+_refobjs = _configs['refobjs'];
+
+_fields = _configs['fields'];
 
 _scr_query = { "ids": { "values": _ids } } if _ids else {'bool':{'must_not':{'term':{'has_duplicate_ids': True}}}} if not _recheck else {'match_all':{}};
 

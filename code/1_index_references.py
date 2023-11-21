@@ -6,35 +6,26 @@ import time
 from tabulate import tabulate
 from elasticsearch.helpers import streaming_bulk as bulk
 
-_max_extract_time = 0.5; #minutes
-_max_scroll_tries = 2;
-_scroll_size      = 50;
-
 _index         = sys.argv[1];
 _out_index     = sys.argv[2];#'references';
-_chunk_size    = 100;
 
-_original = True;  # Using the _original fields if available (can be used to get back the original references after duplicate detection has already been applied)
+IN = None;
+try:
+    IN = open(str((Path(__file__).parent / '../code/').resolve())+'/configs_custom.json');
+except:
+    IN = open(str((Path(__file__).parent / '../code/').resolve())+'/configs.json');
+_configs = json.load(IN);
+IN.close();
 
-_refobjs = [    #'anystyle_references_from_cermine_fulltext',
-                #'anystyle_references_from_cermine_refstrings',
-                #'anystyle_references_from_grobid_fulltext',
-                'anystyle_references_from_grobid_refstrings',
-                #'anystyle_references_from_pdftotext_fulltext',   #                'anystyle_references_from_gold_fulltext',
-                #'cermine_references_from_cermine_xml',          #                'anystyle_references_from_gold_refstrings',
-                #'cermine_references_from_grobid_refstrings',    #                'cermine_references_from_gold_refstrings',
-                #'grobid_references_from_grobid_xml',
-                #'exparser_references_from_cermine_layout',
-                #'matched_references_from_sowiport',
-                #'matched_references_from_crossref',
-                #'matched_references_from_dnb',
-                #'matched_references_from_openalex',
-                #'matched_references_from_ssoar',
-                #'matched_references_from_arxiv',
-                #'matched_references_from_econbiz',
-                #'matched_references_from_gesis_bib',
-                #'matched_references_from_research_data'
-            ];
+_max_extract_time = _configs['max_extract_time_refindex']; #minutes
+_max_scroll_tries = _configs['max_scroll_tries_refindex'];
+_scroll_size      = _configs['scroll_size_refindex'];
+
+_chunk_size    = _configs['chunk_size_refindex'];
+
+_original = _configs['original_values'];  # Using the _original fields if available (can be used to get back the original references after duplicate detection has already been applied)
+
+_refobjs = _configs['refobjs'];
 
 _body = { '_op_type': 'index',
           '_index':   _out_index,
@@ -74,7 +65,7 @@ def get_references(index):
                                     body['_source'][key[:-9]] = reference[key]; # Overwrite the non-original with the original
                             else:
                                 body['_source'][key] = reference[key];
-                        for to_collection in ['sowiport','crossref','dnb','openalex','ssoar','arxiv','research_data','gesis_bib','econbiz','fulltext']:
+                        for to_collection in ['sowiport','crossref','dnb','openalex','ssoar','arxiv','research_data','gesis_bib','econbiz','fulltext','general']: #TODO: last item not tested
                             body['_source']['has_'+to_collection+ '_id'] = (to_collection+ '_id' in reference and reference[to_collection+ '_id']!=None);
                             body['_source']['has_'+to_collection+'_url'] = (to_collection+'_url' in reference and reference[to_collection+'_url']!=None);
                         yield body;
