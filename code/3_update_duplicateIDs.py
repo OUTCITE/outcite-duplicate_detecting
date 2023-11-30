@@ -10,8 +10,11 @@ from difflib import SequenceMatcher as SM
 from common import *
 #-------------------------------------------------------------------------------------------------------------------------------------------------
 #-GLOBAL OBJECTS----------------------------------------------------------------------------------------------------------------------------------
-_index = sys.argv[1];#'references';
 
+# THE REFERENCE INDEX TO UPDATE THE REFERENCES IN
+_index = sys.argv[1];
+
+# LOADING THE CONFIGS CUSTOM IF AVAILABLE OTHERWISE THE DEFAULT CONFIGS FILE
 IN = None;
 try:
     IN = open(str((Path(__file__).parent / '../code/').resolve())+'/configs_custom.json');
@@ -20,25 +23,30 @@ except:
 _configs = json.load(IN);
 IN.close();
 
+# PARAMETERS FOR THE BULK UPDATING ELASTICSEARCH PROCESS
 _chunk_size      =  _configs['chunk_size_duplicates'];
 _request_timeout =  _configs['request_timeout_duplicates'];
 
+# FEATURE PARAMETERS FOR SIMILARITY COMPUTATION
 _ngrams_n   = _configs['ngrams_n'];
 _dateweight = _configs['dateweight'];
 
+# THRESHOLDS FOR PAIRWISE DUPLICATE DECISIONS
 _threshold      = _configs['threshold'];
 _max_title_diff = _configs['max_title_diff'];
 _thr_prec       = _configs['thr_prec'];
-
 _min_title_sim  = _configs['min_title_sim'];
 _min_author_sim = _configs['min_author_sim'];
 
+# REGEXES FOR DETECTING GARBAGE, NAME SEPARATORS AND YEARS
 GARBAGE   = re.compile(_configs['regex_garbage'])#re.compile(r'[\x00-\x1f\x7f-\x9f]|(-\s+)');
 NAMESEP   = re.compile(_configs['regex_namesep']);
 YEAR      = re.compile(_configs['regex_year']); #1500--2023
 
+# WHICH TARGET COLLECTIONS TO USE FOR IDENTIFIER MATCHING
 _target_collections = _configs['targets'];
 
+# HOW TO TURN EACH INPUT FIELD INTO FEATURES WITH NONE MEANING NOT USED
 _featypes = {   'refstring':    'ngrams',  #words #wordgrams #None
                 'sowiportID':   False,
                 'crossrefID':   False,
@@ -66,6 +74,7 @@ _featypes = {   'refstring':    'ngrams',  #words #wordgrams #None
                 'e1first':      'ngrams',
                 'publisher1':   'ngrams' }
 
+# MAPPING THE INPUT TO THE COMPARISON OBJECTS
 _transformap = [ ('reference', "source['reference']"),
                  ('year',      "source['year']"),
                  ('authors',   "source['authors']"),
@@ -79,11 +88,11 @@ _transformap = [ ('reference', "source['reference']"),
                  ('source',    "source['source']"),
                  ('volume',    "source['volume']"),
                  ('issue',     "source['issue']") ];
-
 #-------------------------------------------------------------------------------------------------------------------------------------------------
 #-FUNCTIONS---------------------------------------------------------------------------------------------------------------------------------------
 
-def get_duplicates(M,refs,featsOf,configs): #TODO: May want to adapt like get_clusters and also adapt the tuning script for duplicates to be like the tuning for clusterIDs?
+# CREATE DUPLICATE GROUPS AS TRANSITIVE CLOSURE OF PAIRWISE CLASSIFIER DECISIONS
+def get_duplicates(M,refs,featsOf,configs):
     labellings = [];
     for config in configs:
         EQUIV           = pairwise_classifier(M,refs,featsOf,config);
@@ -91,6 +100,7 @@ def get_duplicates(M,refs,featsOf,configs): #TODO: May want to adapt like get_cl
         labellings.append(labels);
     return labellings, [];
 
+# WRAPPER FUNCTION AROUND PAIRWISE DUPLICATE CLASSIFIER
 def pairwise_classifier(M,refs,featsOf,config):
     # Given sparse matrix M with docIndex->featIndices,
     # create sparse Boolean M.shape[0]*M.shape[0] docIndex->docIndex matrix
@@ -105,20 +115,20 @@ def pairwise_classifier(M,refs,featsOf,config):
     N = csr((np.ones(len(rows_out),dtype=bool),(rows_out,cols_out)),dtype=bool,shape=(M.shape[0],M.shape[0]));
     return N;
 
+# TRANSLATING INPUT ACCORDING TO TRANSFORMATION MAPPING TO BE ABLE TO COMPARE
 def transform(source,transformap):
     target = dict();
     for target_key, source_str in transformap:
         source_val = None;
         try:
-            #print(source_str)
             source_val = eval(source_str,{'source':source},{'source':source});
         except Exception as e:
-            #traceback.print_exc();
-            pass;#print(e);
+            pass;
         if source_val:
             target[target_key] = source_val;
     return target;
 
+# DISTANCE FUNCTIONS
 def distance(a,b):
     a,b        = a.lower(), b.lower();
     s          = SM(None,a,b);
@@ -133,12 +143,13 @@ def distance_2(a,b):
     return dist;
 
 def distance_3(a,b):
-    a,b        = '_'+re.sub(GARBAGE,'',a.lower()),'_'+re.sub(GARBAGE,'',b.lower());#a.lower(), b.lower();
+    a,b        = '_'+re.sub(GARBAGE,'',a.lower()),'_'+re.sub(GARBAGE,'',b.lower());
     s          = SM(None,a,b);
     overlap    = sum([block.size**1 for block in s.get_matching_blocks() if block.size>=2]);
     dist       = min([len(a),len(b)])**1-overlap;
     return dist;
 
+# HELPER FUNCTION TO FLATTEN A DICTIONARY
 def flatten(d, parent_key='', sep='_'):
     items = [];
     for k, v in d.items():
@@ -149,6 +160,7 @@ def flatten(d, parent_key='', sep='_'):
             items.append((new_key, v));
     return dict(items);
 
+# HELPER FUNCTION TO GET ATTRIBUTE VALUE PAIRS FROM A NESTED DICTIONARY
 def pairfy(d, parent_key='', sep='_'): # To be applied after flatten!
     for key in d:
         if isinstance(d[key],list):
@@ -161,6 +173,7 @@ def pairfy(d, parent_key='', sep='_'): # To be applied after flatten!
         else:
             yield (parent_key+sep+key,str(d[key]),);
 
+# HELPER FUNCTION TO CREATE A DICTIONARY FROM KEY VALUE PAIRS WHERE THE SAME KEY CAN EXIST MULTIPLE TIMES AND THEN THE VALUES ARE APPENDED IN A LIST
 def dictfy(pairs):
     d = dict();
     for attr,val in pairs:
@@ -169,6 +182,7 @@ def dictfy(pairs):
         d[attr].append(val);
     return d;
 
+# FIND THE BEST MAPPING BETWEEN TWO LISTS OF STRINGS BASED ON THE USED DISTANCE
 def assign(A,B): # Two lists of strings
     M          = np.array([[distance_3(a,b) if isinstance(a,str) and isinstance(b,str) else a!=b for b in B] for a in A]);
     rows, cols = LSA(M);
@@ -176,6 +190,7 @@ def assign(A,B): # Two lists of strings
     costs      = [M[assignment] for assignment in mapping];
     return mapping,costs;
 
+# CHECK IF TWO VALUES ARE SIMILAR ENOUGH TO BE CONSIDERED EQUIVALENT
 def similar_enough(a,b,cost,threshold):
     if isinstance(a,str) and isinstance(b,str):
         if YEAR.fullmatch(a) and YEAR.fullmatch(b):
@@ -184,6 +199,7 @@ def similar_enough(a,b,cost,threshold):
         return cost / min([len(a),len(b)])**1 < threshold;#max and not **1
     return a == b;
 
+# COMPARE TWO REFERENCE STRINGS WITH CODE FROM EVALUATION
 def compare_refstrings(P_strings,T_strings,threshold): # Two lists of strings
     mapping,costs = assign(P_strings,T_strings);
     pairs         = [(P_strings[i],T_strings[j],) for i,j in mapping];
@@ -193,6 +209,7 @@ def compare_refstrings(P_strings,T_strings,threshold): # Two lists of strings
     recall        = len(matches) / len(T_strings);
     return precision, recall, len(matches), len(P_strings), len(T_strings), matches, mismatches, mapping, costs;
 
+# COMPARE TWO REFERENCE OBJECTS WITH CODE FROM EVALUATION
 def compare_refobject(P_dict,T_dict,threshold):                       # Two dicts that have already been matched based on refstring attribute
     P_pairs     = pairfy(flatten(P_dict));                            # All attribute-value pairs from the output dict
     T_pairs     = pairfy(flatten(T_dict));                            # All attribute-value pairs from the gold   dict
@@ -217,7 +234,8 @@ def compare_refobject(P_dict,T_dict,threshold):                       # Two dict
         costs                                                          += [(TP_key,cost_,)                     for cost_                      in costs_      ];
     return TP/P, TP/T, TP, P, T, matches, mismatches, mapping, costs;
 
-def is_equivalent(ref1,ref2,config):
+# PAIRWISE RULE-BASED DUPLICATE CLASSIFIER
+def is_equivalent(ref1,ref2,config): # I think the idea is that I can give config instead of None, but at this point it is not used at all
     #-----------------------------------------------------------------------------------------------------------------------------------------------
     for target_collection in _target_collections:
         if target_collection+'_id' in ref1 and target_collection+'_id' in ref2 and ref1[target_collection+'_id']==ref2[target_collection+'_id']:
@@ -245,6 +263,7 @@ def is_equivalent(ref1,ref2,config):
         print('distance',distance(title1,title2),'>=',_max_title_diff,'and/or did not match');
     return False;
 
+# DELETE
 def is_equivalent_(ref1,ref2,config):
     #-----------------------------------------------------------------------------------------------------------------------------------------------
     for target_collection in _target_collections:
@@ -280,14 +299,15 @@ def is_equivalent_(ref1,ref2,config):
 #-------------------------------------------------------------------------------------------------------------------------------------------------
 #-SCRIPT------------------------------------------------------------------------------------------------------------------------------------------
 
-_client = ES(['http://localhost:9200'],timeout=60);#ES(['localhost'],scheme='http',port=9200,timeout=60);
+# CONNECTION TO THE LOCAL ELASTICSEARCH INSTANCE WHERE THE INDEX IS
+_client = ES(['http://localhost:9200'],timeout=60);
 
+# BATCH UPDATING THE LOCAL DOCUMENTS INDEX WITH THE DUPLICATE IDS
 i = 0;
-for success, info in bulk(_client,update_references(_index,'cluster_id','duplicate_id',get_duplicates,_featypes,_ngrams_n,[None],True),chunk_size=_chunk_size, request_timeout=_request_timeout):
+for success, info in bulk(_client,update_references(_index,'cluster_id','duplicate_id',get_duplicates,_featypes,_ngrams_n,[[None]],True),chunk_size=_chunk_size, request_timeout=_request_timeout):
     i += 1;
     if not success:
         print('\n[!]-----> A document failed:', info['index']['_id'], info['index']['error'],'\n');
-    #print(i,info)
     if i % _chunk_size == 0:
         print(i,'refreshing...');
         _client.indices.refresh(index=_index);

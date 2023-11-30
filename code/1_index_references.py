@@ -1,14 +1,22 @@
+#-IMPORTS-----------------------------------------------------------------------------------------------------------------------------------------
 import sys
 from copy import deepcopy as copy
 from elasticsearch import Elasticsearch as ES
 import sqlite3
 import time
+import json
 from tabulate import tabulate
 from elasticsearch.helpers import streaming_bulk as bulk
+from pathlib import Path
+#-------------------------------------------------------------------------------------------------------------------------------------------------
+#-GLOBAL OBJECTS----------------------------------------------------------------------------------------------------------------------------------
 
-_index         = sys.argv[1];
-_out_index     = sys.argv[2];#'references';
+# THE DOCUMENT INDEX TO GET THE REFERENCES FROM
+_index     = sys.argv[1];
+# THE REFERENCE INDEX TO WRITE THE REFERENCES TO
+_out_index = sys.argv[2];
 
+# LOADING THE CONFIGS CUSTOM IF AVAILABLE OTHERWISE THE DEFAULT CONFIGS FILE
 IN = None;
 try:
     IN = open(str((Path(__file__).parent / '../code/').resolve())+'/configs_custom.json');
@@ -17,28 +25,33 @@ except:
 _configs = json.load(IN);
 IN.close();
 
+# PARAMETERS FOR THE BULK UPDATING ELASTICSEARCH PROCESS
+_chunk_size       = _configs['chunk_size_refindex'];
 _max_extract_time = _configs['max_extract_time_refindex']; #minutes
 _max_scroll_tries = _configs['max_scroll_tries_refindex'];
 _scroll_size      = _configs['scroll_size_refindex'];
 
-_chunk_size    = _configs['chunk_size_refindex'];
+# USING ORIGINAL FIELDS IF AVAILABLE (CAN BE USED TO RESET THE ORIGINAL VALUES AFTER DUPLICATE DETECTION)
+_original = _configs['original_values'];
 
-_original = _configs['original_values'];  # Using the _original fields if available (can be used to get back the original references after duplicate detection has already been applied)
-
+# THE PIPELINES TO CONSIDER FOR INDEXING THE CORRESPONDING REFERENCES
 _refobjs = _configs['refobjs'];
 
+# THE BODY TO UPDATE THE REFERENCES INDEX
 _body = { '_op_type': 'index',
           '_index':   _out_index,
           '_id':      None,
           '_source':  {}
         }
+#-------------------------------------------------------------------------------------------------------------------------------------------------
+#-FUNCTIONS---------------------------------------------------------------------------------------------------------------------------------------
 
-
+# SCROLLING OVER THE DOCUMENTS TO YIELD THEIR REFERENCES
 def get_references(index):
     #----------------------------------------------------------------------------------------------------------------------------------
     scr_query = { 'match_all':{} };
     #----------------------------------------------------------------------------------------------------------------------------------
-    client   = ES(['http://localhost:9200'],timeout=60);#ES(['localhost'],scheme='http',port=9200,timeout=60);
+    client   = ES(['http://localhost:9200'],timeout=60);
     page     = client.search(index=index,scroll=str(int(_max_extract_time*_scroll_size))+'m',size=_scroll_size,query=scr_query,_source=['@id']+_refobjs);
     sid      = page['_scroll_id'];
     returned = len(page['hits']['hits']);
@@ -86,10 +99,12 @@ def get_references(index):
 
 #-------------------------------------------------------------------------------------------------------------------------------------------------
 
-_client   = ES(['http://localhost:9200'],timeout=60);#ES(['localhost'],scheme='http',port=9200,timeout=60);
+# CONNECTION TO THE LOCAL ELASTICSEARCH INSTANCE WHERE THE INDEX IS
+_client   = ES(['http://localhost:9200'],timeout=60);
 
+# BATCH UPDATING THE LOCAL DOCUMENTS REFERENCE INDEX
 i = 0;
-for success, info in bulk(_client,get_references(_index),chunk_size=_chunk_size): #TODO: I have no idea why, but this accumulates huge amount of memory and then too much
+for success, info in bulk(_client,get_references(_index),chunk_size=_chunk_size):
     i += 1;
     if not success:
         print('A document failed:', info['index']['_id'], info['index']['error']);

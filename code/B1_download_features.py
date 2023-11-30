@@ -8,36 +8,25 @@ from common import *
 #-------------------------------------------------------------------------------------------------------------------------------------------------
 #-GLOBALS-----------------------------------------------------------------------------------------------------------------------------------------
 
+# THE REFERENCE INDEX TO DOWNLOAD THE BLOCKING FEATURES FROM
 _index = sys.argv[1];
+# THE DATABASE TO DOWNLOAD THE FEATURES TO
 _outDB = sys.argv[2];
 
+# PARAMETERS FOR THE BULK UPDATING ELASTICSEARCH PROCESS
 _max_extract_time = 0.5; #minutes
 _max_scroll_tries = 2;
 _scroll_size      = 100;
 
-_refobjs = [    #'anystyle_references_from_cermine_fulltext',
-                #'anystyle_references_from_cermine_refstrings',
-                #'anystyle_references_from_grobid_fulltext',
-                'anystyle_references_from_grobid_refstrings',
-                #'anystyle_references_from_pdftotext_fulltext',   #                'anystyle_references_from_gold_fulltext',
-                #'cermine_references_from_cermine_xml',          #                'anystyle_references_from_gold_refstrings',
-                #'cermine_references_from_grobid_refstrings',    #                'cermine_references_from_gold_refstrings',
-                #'grobid_references_from_grobid_xml',
-                #'exparser_references_from_cermine_layout',
-                #'matched_references_from_sowiport',
-                #'matched_references_from_crossref',
-                #'matched_references_from_dnb',
-                #'matched_references_from_openalex',
-                #'matched_references_from_ssoar',
-                #'matched_references_from_arxiv',
-                #'matched_references_from_econbiz',
-                #'matched_references_from_gesis_bib'
-           ];
+# THE PIPELINES TO CONSIDER FOR INDEXING THE CORRESPONDING REFERENCES
+_refobjs = _configs['refobjs'];
 
+# THE FIELD TO BE USED FOR THE DOCUMENT PART OF THE MENTION IDS
 _id_field = 'id' if _index=='users' else '@id';
 #-------------------------------------------------------------------------------------------------------------------------------------------------
 #-FUNCTIONS---------------------------------------------------------------------------------------------------------------------------------------
 
+# GOING THROUGH THE REFERENCES AND DOWNLOADING THE FEATURES
 def get_references(index,refobj):
     #----------------------------------------------------------------------------------------------------------------------------------
     scr_query = { 'match_all':{} };
@@ -98,14 +87,15 @@ def get_references(index,refobj):
                 scroll_tries += 1;
                 time.sleep(3); continue;
             break;
-
 #-------------------------------------------------------------------------------------------------------------------------------------------------
 #-SCRIPT------------------------------------------------------------------------------------------------------------------------------------------
 
+# CONNECT TO CLIENT AS INPUT SOURCE
+_client = ES(['http://localhost:9200'],timeout=60);#ES(['localhost'],scheme='http',port=9200,timeout=60);
+
+# CONNECT TO OUT DATABASE AND INSERTING THE FEATURES AS DOWNLOADED FROM THE INPUT INDEX
 _con = sqlite3.connect(_outDB);
 _cur = _con.cursor();
-
-_client = ES(['http://localhost:9200'],timeout=60);#ES(['localhost'],scheme='http',port=9200,timeout=60);
 
 _cur.execute("DROP   TABLE IF EXISTS refmetas");
 _cur.execute("CREATE TABLE           refmetas(linkID TEXT PRIMARY KEY, fromPipeline TEXT, sowiportID TEXT, crossrefID TEXT, dnbID TEXT, openalexID TEXT, econbizID TEXT, arxivID TEXT, ssoarID TEXT, research_dataID TEXT, gesis_bibID TEXT, issue INT, volume INT, year INT,source TEXT, title TEXT, a1sur TEXT, a1init TEXT, a1first TEXT, a2sur TEXT, a2init TEXT, a2first TEXT, a3sur TEXT, a3init TEXT, a3first TEXT, a4sur TEXT, a4init TEXT, a4first TEXT, e1sur TEXT, e1init TEXT, e1first TEXT, publisher1 TEXT)");

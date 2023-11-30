@@ -4,6 +4,7 @@ import time
 import re
 import sqlite3
 import itertools
+import json
 from collections import Counter
 from copy import deepcopy as copy
 from elasticsearch import Elasticsearch as ES
@@ -12,9 +13,11 @@ from scipy.sparse import csr_matrix as csr
 from scipy.sparse import diags
 from scipy.sparse.csgraph import connected_components as components
 from sklearn.cluster import DBSCAN
+from pathlib import Path
 #-------------------------------------------------------------------------------------------------------------------------------------------------
 #-GLOBAL OBJECTS----------------------------------------------------------------------------------------------------------------------------------
 
+# LOADING THE CONFIGS CUSTOM IF AVAILABLE OTHERWISE THE DEFAULT CONFIGS FILE
 IN = None;
 try:
     IN = open(str((Path(__file__).parent / '../code/').resolve())+'/configs_custom.json');
@@ -23,22 +26,27 @@ except:
 _configs = json.load(IN);
 IN.close();
 
-_max_scroll_tries = _configs['max_scroll_tries'];
+# PARAMETERS FOR THE BULK UPDATING ELASTICSEARCH PROCESS
 _scroll_size      = _configs['scroll_size'];
 _max_extract_time = _configs['max_extract_time']; #minutes
+_max_scroll_tries = _configs['max_scroll_tries'];
 
+# REGEX FOR WORDS
 WORD = re.compile(_configs['regex_word']); #r'[A-Za-zßäöü]{2,}');
 
+# WHETHER TO USE DBSCAN FOR CLUSTERING
 _DBSCAN = _configs['dbscan'];
 
 #-------------------------------------------------------------------------------------------------------------------------------------------------
 #-FUNCTIONS---------------------------------------------------------------------------------------------------------------------------------------
 
+# HELPER FUNCTION TO MULTIPLY A COUNTER BY A VALUE
 def multiply(counter,i):
     for key in counter:
         counter[key] *= i;
     return counter;
 
+# HELPER FUNCTION TO GET THE CHARACTER N-GRAMS OF A STRING
 def get_ngrams(string,n):
     if not string:
         return [];
@@ -48,6 +56,7 @@ def get_ngrams(string,n):
     string = (affix + string + affix).lower();
     return [string[i:i+n] for i in range(len(string)-(n-1))];
 
+# RETURN THE GOLD LABELLING FROM A DATABASE FILE AND A SET OF IDS WHICH SHOULD BE IN THE DATABASE
 def goldlabels(ids,DB_file,REP=False):
     con            = sqlite3.connect(DB_file);
     cur            = con.cursor();
@@ -55,10 +64,12 @@ def goldlabels(ids,DB_file,REP=False):
     gold_labelling = [mention2goldID[mentionID] for mentionID in ids if mentionID in mention2goldID]; con.close();
     return gold_labelling, mention2goldID;
 
+# RETURN MACHINE LABELLING BASED ON LABELLING AND SET OF IDS
 def autolabels(ids,mention2goldID,labelling):
     auto_labelling = [labelling[i] for i in range(len(ids)) if ids[i] in mention2goldID];
     return auto_labelling;
 
+# EVALUATE THE MACHINE LABELLING AGAINST THE GOLD LABELLING
 def evaluate(auto_labelling,gold_labelling,thrs=[None],addvals=[]):
     precs, recs = [],[];
     for thr in thrs:
@@ -78,6 +89,7 @@ def evaluate(auto_labelling,gold_labelling,thrs=[None],addvals=[]):
     return addvals + [val for pair in zip(precs,recs) for val in pair] + [avg_prec,avg_rec,0 if avg_prec+avg_rec==0 else round((2*avg_prec*avg_rec)/(avg_prec+avg_rec))];
     #print('max_gold:',thr,'avg/med auto cluster:',avg_size_auto,'/',med_size_auto,'avg/med gold cluster:',avg_size_gold,'/',med_size_gold,'---- T:',T,'P:',P,'TP:',TP,'---- Pre:',round(100*TP/P),'Rec:',round(100*TP/T));
 
+# UPDATE REFERENCES OF AN INDEX BY USING A GIVEN LABELLING FUNCTION BASED ON FROM FIELD WRITING RESULT TO TO FIELD
 def update_references(index,fromField,toField,label_func,featypes,ngrams_n,args,KEY=False):#similarities,thresholds,XF_type,FF_type,FX_type):
     body = { '_op_type': 'update', '_index': index, '_id': None, '_source': { 'doc': { 'has_'+toField: True, toField: None } } };
     for ID, size in get_distinct(fromField+['','.keyword'][KEY],index):
@@ -89,8 +101,6 @@ def update_references(index,fromField,toField,label_func,featypes,ngrams_n,args,
         for i in range(len(refs)):
             body                            = copy(body);
             body['_id']                     = refs[i]['id'];
-            if refs[i]['block_id']==238:
-                print('...for', refs[i]['id'])
             body['_source']['doc'][toField] = str(refs[i][fromField])+'_'+str(labelling[i]);
             yield body;
 
@@ -112,7 +122,7 @@ def update_references(index,fromField,toField,label_func):
             body['_source']['doc'][toField] = str(refs[i][fromField])+'_'+str(labelling[i]);
             yield body;
 '''
-
+# HELPER FUNCTION TO DISPLAY REFERENCE LABELLING
 def display(refs,featsOf,auto_labelling,gold_labelling,threshold,FEATS=False):
     table     = [(refs[i],featsOf[i],auto_labelling[i],gold_labelling[i],) for i in range(len(auto_labelling))];
     histogram = Counter(auto_labelling);
@@ -135,6 +145,7 @@ def display(refs,featsOf,auto_labelling,gold_labelling,threshold,FEATS=False):
                         print('--->',row[3], row[0]['reference']);
             input('________________________________________________________________________________________________________________________________________________________________________');
 
+# HELPER FUNCTION TO GET ALL DISTINCT VALUES IN A GIVEN FIELD OF AN INDEX
 def get_distinct(field,index):
     #----------------------------------------------------------------------------------------------------------------------------------
     query = { "exists": {"field": field} };
@@ -151,6 +162,7 @@ def get_distinct(field,index):
             yield bucket['key'][field], bucket['doc_count'];
             print("# Duplicate cluster label:",bucket['key'][field]," -- count:",bucket['doc_count'],'                  ',end='\r');
 
+# ITERATOR OVER ALL DOCUMENTS WHICH HAVE A CERTAIN VALUE IN A CERTAIN FIELD
 def get_by_fieldvalue(field,ID,index):
     #----------------------------------------------------------------------------------------------------------------------------------
     scr_body = { "query": { "term": { field: ID } } };
@@ -178,6 +190,7 @@ def get_by_fieldvalue(field,ID,index):
             break;
     client.clear_scroll(scroll_id=sid);
 
+# EXTRACT FEATURES FROM A GIVEN REFERENCE
 def get_features(reference):
     refstring  = reference['reference']   if 'reference'   in reference else None;
     sowiportID = reference['sowiport_id'] if 'sowiport_id' in reference else None;
@@ -207,6 +220,7 @@ def get_features(reference):
     publisher1 = reference['publishers'][0]['publisher_string'] if 'publishers' in reference and isinstance(reference['publishers'],list) and len(reference['publishers']) > 0 and 'publisher_string' in reference['publishers'][0] and isinstance(reference['publishers'][0]['publisher_string'],str) else None;
     return refstring,sowiportID,crossrefID,dnbID,openalexID,issue,volume,year,source,title,a1sur,a1init,a1first,a2sur,a2init,a2first,a3sur,a3init,a3first,a4sur,a4init,a4first,e1sur,e1init,e1first,publisher1;
 
+# HELPER FUNCTION TO GET THE CHARACTER NGRAMS OF A GIVEN STRING
 def get_ngrams(string,n):
     if not string:
         return [];
@@ -216,6 +230,7 @@ def get_ngrams(string,n):
     string = (affix + string + affix).lower();
     return [string[i:i+n] for i in range(len(string)-(n-1))];
 
+# HELPER FUNCTION TO GET ALL WORDS OF A GIVEN STRING
 def get_words(string):
     if not string:
         return [];
@@ -224,6 +239,7 @@ def get_words(string):
     string = string.lower();
     return [match.group(0) for match in WORD.finditer(string)];
 
+# HELPER FUNCTION TO GET ALL WORD NGRAMS OF A GIVEN STRING
 def get_wordgrams(string,n):
     if not string:
         return [];
@@ -234,6 +250,7 @@ def get_wordgrams(string,n):
     words  = get_words(string);
     return ['_'.join(words[i:i+n]) for i in range(len(words)-(n-1))];
 
+# GET ATTRIBUTE VALUE PAIRS 
 def process_features(ftypes,feats,types=None,n=None):
     ftypes_, feats_ = [],[];
     for i in range(len(feats)):
@@ -244,6 +261,7 @@ def process_features(ftypes,feats,types=None,n=None):
         ftypes_         += [ftypes[i] for j in range(len(additional_feats))];
     return set([(ftypes_[j],feats_[j],) for j in range(len(ftypes_))]);
 
+# PRODUCE THE DOCUMENT FEATURE MATRIX UPON WHICH EVERYTHING ELSE IS BASED
 def get_matrix(index,field,ID,featypes=None,n=None):
     index2ftype = ['refstring','sowiportID','crossrefID','dnbID','openalexID','issue','volume','year','source','title','a1sur','a1init','a1first','a2sur','a2init','a2first','a3sur','a3init','a3first','a4sur','a4init','a4first','e1sur','e1init','e1first','publisher1'];
     ftype2index = {index2ftype[i]:i for i in range(len(index2ftype))};
@@ -258,11 +276,13 @@ def get_matrix(index,field,ID,featypes=None,n=None):
     #M           = M[:,np.ravel(M.sum(0)>1)]; # Remove all features that occur only once #TODO: This is not necessarily a good idea as it removes information about original set size
     return M,references,featsOf,index2feat,feat2index;
 
+# COSINE SIMILARITIES FOR MATRIX
 def cosim(DOT):
     NORMS = np.sqrt(DOT.diagonal());
     DENOM = diags(1/NORMS);
     return DOT.dot(DENOM).dot(DENOM.T).sorted_indices();
 
+# JACCARD DISTANCES FOR MATRIX
 def jaccard(DOT,SIZES=None,nzrows=None,nzcols=None):
     SIZES          = DOT.diagonal() if SIZES is None else SIZES;
     nzrows, nzcols = DOT.nonzero() if nzrows is None else [nzrows, nzcols];
@@ -271,6 +291,7 @@ def jaccard(DOT,SIZES=None,nzrows=None,nzcols=None):
     JACCARD.data   = DOT.data/JACCARD.data;
     return JACCARD.sorted_indices();
 
+# F1 SIMILARITIES FOR MATRIX
 def f1(DOT,SIZES=None,nzrows=None,nzcols=None):
     SIZES          = DOT.diagonal() if SIZES is None else SIZES;
     nzrows, nzcols = DOT.nonzero() if nzrows is None else [nzrows, nzcols];
@@ -278,6 +299,7 @@ def f1(DOT,SIZES=None,nzrows=None,nzcols=None):
     F1.data        = (F1.data*2) / (SIZES[nzrows] + SIZES[nzcols]);
     return F1.sorted_indices();
 
+# OVERLAP SIMILARITY FOR MATRICES
 def overlap(DOT,SIZES=None,nzrows=None,nzcols=None):
     SIZES          = DOT.diagonal() if SIZES is None else SIZES;
     nzrows, nzcols = DOT.nonzero() if nzrows is None else [nzrows, nzcols];
@@ -285,9 +307,11 @@ def overlap(DOT,SIZES=None,nzrows=None,nzcols=None):
     OVERLAP.data   = OVERLAP.data / np.minimum(SIZES[nzrows],SIZES[nzcols]);
     return OVERLAP.sorted_indices();
 
+# PROBABILISTIC SIMILARITY FOR THREE INPUT MATRICES
 def probability(XF,FF,FX):
     return XF.dot(FF).dot(FX).sorted_indices();
 
+# OBTAIN THE FEATURE FEATURE MATRIX
 def getFF(M,thr=None):
     x_vec, f_vec         = M.sum(1), M.sum(0);
     FX                   = csr(M.astype(int).T.multiply(1.0/x_vec.T));
@@ -301,6 +325,7 @@ def getFF(M,thr=None):
     FF.data[FF.data<thr] = 0; FF.eliminate_zeros();
     return XF,FF,FX;
 
+# GET CLUSTERS BADED ON INPUT MATRIX AND MANY PARAMETERS
 def get_clusters(M,refs,index2feat,similarities,thresholds,XF_type,FF_type,FX_type,field2ftype,fweight,bias,gold_labelling=None):
     XF,FF,FX  = getFF(M,None) if FF_type=='PROB' else getFF(M,0.5) if FF_type=='PROB_thr' else [None,csr((np.ones(M.shape[1]),(np.arange(M.shape[1]),np.arange(M.shape[1]))),dtype=int),None];
     XF        = XF if XF_type=='PROB' else M;
@@ -347,6 +372,7 @@ def get_clusters(M,refs,index2feat,similarities,thresholds,XF_type,FF_type,FX_ty
             labellings.append(labels);
     return labellings,samples;
 
+# SAMPLING PAIRS FROM GOLD STANDARD
 def get_samples(gold_labelling,max_equivs_per_gold_label=1000,max_equivs=10000,max_diffs_per_gold_pair=10,max_diffs=10000):
     goldlabel2mentionindex = dict();
     for i in range(len(gold_labelling)):

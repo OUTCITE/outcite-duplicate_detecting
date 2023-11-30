@@ -7,9 +7,12 @@ from common import *
 #-------------------------------------------------------------------------------------------------------------------------------------------------
 #-GLOBAL OBJECTS----------------------------------------------------------------------------------------------------------------------------------
 
+# THE DOCUMENT INDEX TO UPDATE THE REFERENCES IN
 _index     = sys.argv[1];
+# THE DUPLICATE INDEX TO GET THE DUPLICATE INFORMATION FROM
 _dup_index = sys.argv[2];
 
+# LOADING THE CONFIGS CUSTOM IF AVAILABLE OTHERWISE THE DEFAULT CONFIGS FILE
 IN = None;
 try:
     IN = open(str((Path(__file__).parent / '../code/').resolve())+'/configs_custom.json');
@@ -18,31 +21,38 @@ except:
 _configs = json.load(IN);
 IN.close();
 
+# WETHER TO UPDATE THE REFERENCES FOR DOCUMENTS THAT HAVE ALREADY BEEN LABELLED AS PROCESSED FOR THIS STEP BEFORE
 _recheck = _configs['recheck_references'];
+
+# THE LIST OF IDS IF ONLY TO UPDATE SOME DOCUMENTS
 _ids     = _configs['ids'];
 
+# PARAMETERS FOR THE BULK UPDATING ELASTICSEARCH PROCESS
 _chunk_size       =  _configs['chunk_size_references'];
 _request_timeout  =  _configs['request_timeout_references'];
 _scroll_size      =  _configs['scroll_size_references'];
 _max_extract_time =  _configs['max_extract_time_references'];
 _max_scroll_tries =  _configs['max_scroll_tries_references'];
 
-_featyp, _ngrams_n = _configs['featype'], _configs['ngrams_n']; #words #wordgrams #None #5
+#_featyp, _ngrams_n = _configs['featype'], _configs['ngrams_n']; #words #wordgrams #None #5
+#_similarities, _thresholds = _configs['similarities'], _configs['thresholds']; #jaccard #f1 #overlap #None
+_#XF_type,_FF_type,_FX_type = _configs['XF_type'], _configs['FF_type'], _configs['FX_type'];
 
-_similarities, _thresholds = _configs['similarities'], _configs['thresholds']; #jaccard #f1 #overlap #None
-_XF_type,_FF_type,_FX_type = _configs['XF_type'], _configs['FF_type'], _configs['FX_type'];
-
+# THE PIPELINES TO CONSIDER FOR INDEXING THE CORRESPONDING REFERENCES
 _refobjs = _configs['refobjs'];
 
+# THE FIELDS TO CHANGE IN THE REFERENCES
 _fields = _configs['fields'];
 
+# SCROLL QUERY TO USE TO ITERATE OVER THE DOCUMENT INDEX
 _scr_query = { "ids": { "values": _ids } } if _ids else {'bool':{'must_not':{'term':{'has_duplicate_ids': True}}}} if not _recheck else {'match_all':{}};
 
+# BODY TO UPDATE THE REFERENCES IN THE DOCUMENT INDEX
 _body = { '_op_type': 'update', '_index': _index, '_id': None, '_source': { 'doc': { 'has_duplicate_ids': False, 'num_duplicate_ids': 0, 'processed_duplicate_ids': True, 'has_cluster_ids': False, 'num_cluster_ids': 0, 'processed_cluster_ids': True } } };
-
 #-------------------------------------------------------------------------------------------------------------------------------------------------
 #-FUNCTIONS---------------------------------------------------------------------------------------------------------------------------------------
 
+# OBTAIN THE NEW MODIFIED REFOBJECTS GIVEN THE OLD ONES AND THE DUPLICATE GROUP RECORD
 def update_refobjects(refobjects,fromID,toolchain,client,index,fields):
     query          = {'term':{'ids.keyword':None}};
     cluIDs         = [];
@@ -71,6 +81,7 @@ def update_refobjects(refobjects,fromID,toolchain,client,index,fields):
                 print('Could not find',refID,'in',duplicate['ids'],'.');
     return new_refobjects,dupIDs,cluIDs;
 
+# MAIN FUNCTION TO SCROLL OVER THE DOCUMENT INDEX AND MODIFY THE REFERENCES BASED ON THE DUPLICATE INFORMATION
 def update_docs(index,index_m,fields):
     client   = ES(['http://localhost:9200'],timeout=60);#ES(['localhost'],scheme='http',port=9200,timeout=60);
     client_m = ES(['http://localhost:9200'],timeout=60);#ES(['localhost'],scheme='http',port=9200,timeout=60);
@@ -117,18 +128,18 @@ def update_docs(index,index_m,fields):
                 time.sleep(3); continue;
             break;
     client.clear_scroll(scroll_id=sid);
-
 #-------------------------------------------------------------------------------------------------------------------------------------------------
 #-SCRIPT------------------------------------------------------------------------------------------------------------------------------------------
 
-_client = ES(['http://localhost:9200'],timeout=60);#ES(['localhost'],scheme='http',port=9200,timeout=60);
+# CONNECTION TO THE LOCAL ELASTICSEARCH INSTANCE WHERE THE INDEX IS
+_client = ES(['http://localhost:9200'],timeout=60);
 
+# BATCH UPDATING THE LOCAL DOCUMENT INDEX WITH THE DUPLICATE INFORMATION
 i = 0;
 for success, info in bulk(_client,update_docs(_index,_dup_index,_fields),chunk_size=_chunk_size, request_timeout=_request_timeout):
     i += 1;
     if not success:
         print('\n[!]-----> A document failed:', info['index']['_id'], info['index']['error'],'\n');
-    #print(i,info)
     if i % _chunk_size == 0:
         print(i,'refreshing...');
         _client.indices.refresh(index=_index);

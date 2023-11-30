@@ -1,3 +1,4 @@
+#-IMPORTS-----------------------------------------------------------------------------------------------------------------------------------------
 import sqlite3
 import json
 import os,sys
@@ -18,21 +19,26 @@ import re
 from symspellpy import SymSpell, Verbosity
 import pkg_resources
 from cld3 import get_language as detect
+#-------------------------------------------------------------------------------------------------------------------------------------------------
+#-GLOBALS-----------------------------------------------------------------------------------------------------------------------------------------
 
-
+# THE DATABASE WHICH CONTAINES THE UNPROCESSED FEATURES
 _indb  = sys.argv[1];
+# THE DATABASE WHERE THE PROCESSED FEATURES ARE WRITTEN TO
 _outdb = sys.argv[2];
 
-_simple_freqs = 1.0;
+#_simple_freqs = 1.0;
+#_dump      = 10000;
+#_wait      = 0.001;
 
-_dump      = 10000;
-_wait      = 0.001;
+# THE NEXT YEAR
+_maxyear = date.today().year + 1;
 
-_maxyear = 2023;
-
+# PARAMETERS FOR AUTO-CORRECTING POSSIBLE TYPOS
 _dict_edit_dist = 4;
 _ratio          = 0.2;
 
+# PARAMETERS FOR THE FEATURE EXTRACTION
 # The three cases used are <words,parts> / <word_ngrams,parts> / <char_ngrams,char_ngrams>
 _termfeats       = 'words' #'word_ngrams'; #'words' 'char_grams' 'char_grams_by_word'
 _authfeats       = 'parts' #'parts' 'char_grams'
@@ -40,15 +46,18 @@ _wordsep_authors = True;
 _n_authors       = 5;
 _n_terms         = 5;
 
+# LOADING FREQUENCY DICTIONARIES
 _symspells = dict();
 for code,filename in [('default',"frequency_dictionary_en_82_765.txt",),('de',"de-100k.txt",),('fr',"fr-100k.txt",),('es',"es-100l.txt",),('ru',"ru-100k.txt",),('it',"it-100k.txt",)]:
     _symspells[code] = SymSpell(max_dictionary_edit_distance=_dict_edit_dist, prefix_length=7);
     _symspells[code].load_dictionary(pkg_resources.resource_filename("symspellpy", filename), term_index=0, count_index=1);
 
+# STOPWORDS TO REMOVE
 _stopwords = set().union(*[set(stopwords.words(lang)) for lang in ['english','german','french','italian','spanish','russian','portuguese','dutch','swedish','danish','finnish']]);
 _tokenizer = RegexpTokenizer(r'\w+')
 _surpres   = set(['de','del','di','de la','von','van','della']);
 
+# REGEXES FOR DIFFERENT EXTRACTION TASKS
 NONAME    = re.compile(r'(.*anonym\w*)|(.*unknown\w*)|(\s*-\s*)');
 WORD      = re.compile(r'(\b[^\s]+\b)'); #TODO: Make stricter
 STRIP     = re.compile(r'(^(\s|,)+)|((\s|,)+$)');
@@ -56,8 +65,12 @@ PUNCT     = re.compile(r'[!"#$%&\'()*+\/:;<=>?@[\\\]^_`{|}~1-9]'); #Meaningless 
 SUBTITDIV = re.compile(r'\. |: | -+ |\? ');
 STOPWORDS = re.compile(r'&|\.|\,|'+r'|'.join(['\\b'+stopword+'\\b' for stopword in _stopwords]));
 
+# LEMMATIZER
 WNL = WordNetLemmatizer();
+#-------------------------------------------------------------------------------------------------------------------------------------------------
+#-FUNCTIONS---------------------------------------------------------------------------------------------------------------------------------------
 
+# HELPER FUNCTIONs FROM THE FEATURE EXTRACTION CODE
 def concat(object1, object2):
     if isinstance(object1, str):
         object1 = [object1]
@@ -178,6 +191,7 @@ def authgrams(a1surname,a1init,a1first,a2surname,a2init,a2first,a3surname,a3init
 def get_years(year):
     return [int(str(year-1)+str(year)), int(str(year)+str(year+1))] if isinstance(year,int) and year <= _maxyear else [None,None];
 
+# MAIN FUNCTION TO READ THE FEATURES TO BE TRANSFORMED INTO THE DESIRED OUPUT FEATURES
 def get_features(cur):
     row_num      = 0;
     index2linkID = [];
@@ -209,7 +223,10 @@ def get_features(cur):
 #  --> Lower case and ASCII
 #  --> Split source and title into phrases
 #  --> Make year like 20002001
+#-------------------------------------------------------------------------------------------------------------------------------------------------
+#-SCRIPT------------------------------------------------------------------------------------------------------------------------------------------
 
+# CONNECTING TO IN AND OUT DATABASE AND INSERTING INTO THE OUT DATABASE THE PROCESSED FEATURES FROM THE IN DATABASE
 con     = sqlite3.connect(_indb);
 cur     = con.cursor();
 con_out = sqlite3.connect(_outdb);
@@ -233,4 +250,4 @@ con_out.close();
 # a1sur, a1init, a1first, a2sur, a2init, a2first, a3sur, a3init, a3first, a4sur, a4init, a4first
 # e1sur, e1init, e1first
 # publisher1
-#-----------------------------------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------------------------------------------------------------

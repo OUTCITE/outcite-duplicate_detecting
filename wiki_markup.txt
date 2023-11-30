@@ -1,0 +1,49 @@
+![duplicate_framework](uploads/d5b705e6bd87858b7385f19bdaad7ef3/duplicate_framework.png)
+
+This is meant to identify groups of extracted references that refer to the same (matched or unmatched) publication. The most straightforward example is the same reference being extracted by different tools. We can also add records of matched publications from target collections into the set of potential duplicates, so that they will be linked to the duplicate groups whereof at least one is matched to them. Then the canonical representation (a merged version of the identified duplicate group) can include specifically information from the metadata of the matched record(s).
+
+# Get Features for Duplicate Detection
+
+This downloads the features used for duplicate detection for all references extracted in the OUTCITE SSOAR index, modifies them and may also add gold or silver duplicate group identifiers to allow for evaluation of the duplicate detection pipeline.
+
+1. **python code/[B1_download_features.py](https://git.gesis.org/backests/duplicate_detecting/-/blob/master/code/B1_download_features.py "B1_download_features.py") \<outcite_ssoar\> \<resources/features.db\>** downloads the features for all extracted references into an SQLite database.
+
+2. **python code/[B2_process_features.py](https://git.gesis.org/backests/duplicate_detecting/-/blob/master/code/B2_process_features.py "B2_process_features.py") \<resources/features.db\> \<resources/features_processed.db\>** transforms the above created database into one that is conforming to the input requirements for the blocking step.
+
+3. **python code/[B3_add_goldID.py](https://git.gesis.org/backests/duplicate_detecting/-/blob/master/code/B3_add_goldID.py "B3_add_goldID.py") \<resources/features.db\> \<resources/features_processed.db\>** can be used to add gold or silver identifiers to the already existing column in the above created database.
+
+For **B2_process_features.py**, I provide frequency dictionaries in **resources/word_frequencies/**. These need to be copied into the symspellpy folder, which should be something like **\~/anaconda3/envs/py38/lib/python3.8/site-packages/symspellpy**.
+
+# Run the Blocking Step on GPU Server
+
+This remote-copies the above created feature database to the GPU-Server and runs the entire blocking pipeline from previous research work on it. The resulting duplicate block mapping is copied back to the OUTCITE server. This takes about 5 minutes.
+
+1. **bash /data_ssd/backests/Repositories/pubdedup/code/pipeline/OUTCITE.sh**
+
+# Ingest the Block-IDs
+
+1. **python code/[0_update_blockIDs.py](https://git.gesis.org/backests/duplicate_detecting/-/blob/master/code/0_update_blockIDs.py "0_update_blockIDs.py") \<outcite_ssoar\> \<resources/duplicates.db\>** takes the duplicate block identifiers from the duplicate block mapping that has been copied to the OUTCITE server and adds them to the respective references in the OUTCITE SSOAR index.
+
+# Index the References into separate Index
+
+1. **python code/[M_create_index.py](https://git.gesis.org/backests/refextract/-/blob/master/code/M_create_index.py "M_create_index.py") \<references\>** creates a new index called ‘references’ where the references will be stored as documents on the top level.
+
+2. **python code/[1_index_references.py](https://git.gesis.org/backests/duplicate_detecting/-/blob/master/code/1_index_references.py) \<outcite_ssoar\> \<references\>** writes all references extracted in the OUTCITE SSOAR index into the above created index.
+
+# Continue Duplicate Detection
+
+While the previous step was only the blocking step, this determines the actual duplicate groups, which are partitions of these blocks.
+
+1. **python code/[2_update_clusterIDs.py](https://git.gesis.org/backests/duplicate_detecting/-/blob/master/code/2_update_clusterIDs.py) \<references\>** clusters the duplicate blocks using clustering techniques. The resulting identifier is called ‘cluster_id’ and stored with the reference in the OUTCITE references index.
+
+2. **python code/[3_update_duplicateIDs.py](https://git.gesis.org/backests/duplicate_detecting/-/blob/master/code/3_update_duplicateIDs.py) \<references\>** does a pairwise classification of the above created clusters to determine pairs that seem impossible to be duplicates and then applies the transitive closure of the new duplicate-relation. Note that the closure may re-establish duplicate relationships by transitivity that have just been broken up. The resulting identifier is called ‘duplicate_id’ and stored with the reference in the OUTCITE references index.
+
+# Index the Canonical Representation for each Duplicate Group
+
+1. **python code/[M_create_index.py](https://git.gesis.org/backests/refextract/-/blob/master/code/M_create_index.py) \<duplicates\>** creates a new index called ‘duplicates’ that stores information such as the canonical values used for different reference fields as well as the original values from the individual extracted references and the corresponding identifiers of these individual extracted references.
+
+2. **python code/[4_index_duplicates.py](https://git.gesis.org/backests/duplicate_detecting/-/blob/master/code/4_index_duplicates.py) \<references\> \<duplicates\>** creates an entry for all references that have the same duplicate_id and stores it in the above created index.
+
+# Overwrite the Information for Extracted References by the Canonical Representation
+
+1. **python code/[5_update_references.py](https://git.gesis.org/backests/duplicate_detecting/-/blob/master/code/5_update_references.py) \<outcite_ssoar\> \<duplicates\>** replaces the information in the extracted references in the OUTCITE SSOAR index by the canonical values stored in the respective duplicate group’s entry in the OUTCITE duplicates index. Also keeps the previous values in fields ending on ‘\_original’. This is not necessarily applied in practice as the export for other uses can be done directly from the duplicates or references index.

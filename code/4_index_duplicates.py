@@ -10,9 +10,12 @@ from common import *
 #-------------------------------------------------------------------------------------------------------------------------------------------------
 #-GLOBAL OBJECTS----------------------------------------------------------------------------------------------------------------------------------
 
-_index            = sys.argv[1];#'references'; #'references_geocite' #'references_ssoar_gold'
-_out_index        = sys.argv[2];#'duplicates'; #'duplicates_geocite' #'duplicates_ssoar_gold'
+# THE REFERENCE INDEX TO GET THE REFERENCES FROM
+_index     = sys.argv[1];
+# THE DUPLICATE INDEX TO WRITE THE DUPLICATES TO
+_out_index = sys.argv[2];
 
+# LOADING THE CONFIGS CUSTOM IF AVAILABLE OTHERWISE THE DEFAULT CONFIGS FILE
 IN = None;
 try:
     IN = open(str((Path(__file__).parent / '../code/').resolve())+'/configs_custom.json');
@@ -21,20 +24,26 @@ except:
 _configs = json.load(IN);
 IN.close();
 
+# PRIORITY LIST FOR WHICH TARGET LINK TO USE AS MAIN ONE
 _priority = _configs['targets'];
+# GESIS TARGETS FOR WHICH GWS_TOID CAN BE CREATED
 _GESIS    = _configs['gesis'];
 
+# REGEXES FOR SEPARATORS AND WORDS
 SEPS = re.compile(_configs['regex_seps']); #r'[^A-Za-zßäöü]');
 WORD = re.compile(_configs['regex_word']); #r'[A-Za-zßäöü]{2,}');
 
+# THE CURRENT YEAR
 YEAR = date.today().year;
 
+# BODY TO UPDATE THE DUPLICATE INDEX
 _body = { '_op_type': 'index',
           '_index':   _out_index,
           '_id':      None,
           '_source':  {}
         }
 
+# WEIGHTS FROM THE PERFORMANCE EVALUATION OF DIFFERENT TOOLS TO DETERMINE THE RELATIVE WEIGHT GIVEN TO VALUES OF SAME FIELD FOR DIFFERENT TOOLS WHEN MERGING REFERENCES CREATED BY THEM
 _tool_f1 = {
     'grobid_references_from_grobid_xml':            {'reference':80,'title':66,'year':81,'authors':69,'editors': 8,'publishers':40,'source':48,'volume':65,'issue':33,'start':77,'end':77},
     'cermine_references_from_grobid_refstrings':    {'reference':80,'title':57,'year':76,'authors':12,'editors': 0,'publishers': 0,'source':27,'volume':30,'issue':13,'start':38,'end':37},
@@ -55,10 +64,10 @@ _tool_f1 = {
     'matched_references_from_gesis_bib':            {'reference':99,'title':99,'year':99,'authors':99,'editors':99,'publishers':99,'source':99,'volume':99,'issue':99,'start':99,'end':99},
     'matched_references_from_research_data':        {'reference':99,'title':99,'year':99,'authors':99,'editors':99,'publishers':99,'source':99,'volume':99,'issue':99,'start':99,'end':99}
 }
-
 #-------------------------------------------------------------------------------------------------------------------------------------------------
 #-FUNCTIONS---------------------------------------------------------------------------------------------------------------------------------------
 
+# GETTING THE TERMS THAT ARE MOST FREQUENTLY SHARED
 def get_topterms(strings,tools,field,threshold):
     #reps  = [set([term.lower() for term in SEPS.split(string) if len(term)>=3]) if isinstance(string,str) else set([]) for string in strings];
     reps  = [set([ngram.lower() for ngram in get_ngrams(string,3)]) if isinstance(string,str) else set([]) for string in strings];
@@ -66,6 +75,7 @@ def get_topterms(strings,tools,field,threshold):
     tops  = [(freqs[term]/len([string for string in strings if string]),term,) for term in freqs if freqs[term]/len([string for string in strings if string])>threshold];
     return tops,reps; # Returns all words that occur in at least <threshold>*100% strings as well as the representations of all strings in the input order
 
+# FINDING THE MOST REPRESENTATIVE VALUE FOR A SET OF VALUES FOR ALL FIELDS IN THE REFERENCES
 def best_representative(references,field,threshold):
     strings          = [reference[field] if field in reference and reference[field] else None for reference in references] if not field in ['authors','editors','publishers'] else [', '.join([element[field[:-1]+'_string'] for element in reference[field] if isinstance(element,dict) and field[:-1]+'_string' in element and isinstance(element[field[:-1]+'_string'],str)]) if field in reference and isinstance(reference[field],list) else None for reference in references];
     tools            = [reference['pipeline'] for reference in references]
@@ -88,6 +98,7 @@ def best_representative(references,field,threshold):
     #print(max_val,'->',references[max_ind][field] if max_ind >= 0 else None);
     return references[max_ind][field] if max_ind >= 0 else None;
 
+# HELPER FUNCTION TO CLEARN INTEGER VALUES
 def clean_int(reference,field,lower,upper): #TODO: This may always return None
     value = None;
     if field in reference and reference[field]:
@@ -107,8 +118,9 @@ def clean_int(reference,field,lower,upper): #TODO: This may always return None
     #print('===========>',reference[field] if field in reference else 'n.a.',value,field,lower,upper);
     return reference;
 
+# GET MOST FREQUENT FIELD COMBINATION, COUNTING ALL SPECIFICATION WHEN A GENERALISATION IS OBSERVED
 def majority_vote(references,fields):
-    values = [tuple([reference[field] for field in fields]) for reference in references]; #TODO: What if reference[field] is a list?
+    values = [tuple([reference[field] for field in fields]) for reference in references];
     freqOf = Counter(values);
     suppOf = Counter(); # Not actually support, but the opposite
     for key in freqOf:
@@ -120,6 +132,7 @@ def majority_vote(references,fields):
     #    print(key,':',suppOf[key]);
     return max(suppOf,key=suppOf.get) if len(suppOf)>0 else tuple([None for field in fields]);
 
+# GET THE MOST FREQUENT NAME FROM A SET OF NAMES
 def majority_name(names,fields):
     for i in range(len(names)):
         for key in names[i]:
@@ -135,7 +148,7 @@ def majority_name(names,fields):
             if check == len(fields):
                 suppOf[key_] += freqOf[key];
     representative = max(suppOf,key=suppOf.get) if len(suppOf)>0 else tuple([None for field in fields]);
-    dictionary     = dict(); #TODO: Should be possible to shorten the below lines substantially
+    dictionary     = dict();
     for i in range(len(fields)):
         if representative[i]:
             key = fields[i][:-2];
@@ -161,6 +174,7 @@ def majority_vote_(references,fields): #TODO: Can probably be removed
     counts  = sorted([(counter[key],key,) for key in counter],key=lambda x:x[0]);
     return max(values,key=values.count) if len(values) > 0 else tuple([None for field in fields]);
 
+# GET THE BEST URL FOR A SET OF REFERENCES WITH URLS
 def best_url(references,target_collections):
     url  = None;
     urls = {target_collection:[reference[target_collection+'_url'] for reference in references if target_collection+'_url' in reference and reference[target_collection+'_url']] for target_collection in target_collections}
@@ -170,6 +184,7 @@ def best_url(references,target_collections):
             return target_collection, maxs[target_collection];
     return None, None
 
+# OBTAIN THE CANONICAL REPRESENTATION FOR A SET OF REFERENCES BY MERGING THEM BASED ON MOST REPRESENTATIVE VALUES
 def consolidate_references(index,duplicateIDs=[]):
     duplicateIDs = duplicateIDs if duplicateIDs else get_distinct('duplicate_id.keyword',index);
     for duplicateID, size in duplicateIDs:
@@ -179,8 +194,8 @@ def consolidate_references(index,duplicateIDs=[]):
                 references[i] = clean_int(references[i],field,lower,upper);
         #[majority_name([reference['authors'][i] for reference in references if 'authors' in reference and len(reference['authors'])>i],['author_string_0','surname_0','initials_0','initials_1','initials_2','firstnames_0','firstnames_1','firstnames_2']) for i in range(50)];
         volume,issue,year,start,end = majority_vote(references,['volume','issue','year','start','end']); #print('====>',volume,issue,year,start,end) # These all correlate so to speak
-        refstring                   = best_representative(references,'reference' ,0.75); #TODO: This should never become null
-        title                       = best_representative(references,'title'     ,0.75); #TODO: This should never become null
+        refstring                   = best_representative(references,'reference' ,0.75);
+        title                       = best_representative(references,'title'     ,0.75);
         source                      = best_representative(references,'source'    ,0.30);
         place                       = best_representative(references,'place'     ,0.50); # Might correlate with the publication info (volume, etc.) but there could still be variations of the same place
         typ                         = best_representative(references,'type'      ,0.50);
@@ -230,6 +245,7 @@ def consolidate_references(index,duplicateIDs=[]):
         reference_new['has_urls'] = reference_new['num_urls'] > 0;
         yield duplicateID,reference_new;
 
+# WRAPPER FUNCTION TO PROVIDE THE BULK BODIES
 def get_duplicates(index):
     for dupID, duplicate in consolidate_references(_index):
         body                    = copy(_body);
@@ -240,11 +256,10 @@ def get_duplicates(index):
 #-------------------------------------------------------------------------------------------------------------------------------------------------
 #-SCRIPT------------------------------------------------------------------------------------------------------------------------------------------
 
-#_duplicateIDs = [("84_2_0",None)];
-#print(list(consolidate_references(_index,duplicateIDs=_duplicateIDs)));
-#'''
+# CONNECTION TO THE LOCAL ELASTICSEARCH INSTANCE WHERE THE INDEX IS
 _client   = ES(['http://localhost:9200'],timeout=60);#ES(['localhost'],scheme='http',port=9200,timeout=60);
 
+# BATCH UPDATING THE LOCAL DUPLICATE INDEX
 i = 0;
 for success, info in bulk(_client,get_duplicates(_index)):
     i += 1;
