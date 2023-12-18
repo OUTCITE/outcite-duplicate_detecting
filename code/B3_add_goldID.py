@@ -1,10 +1,12 @@
 #-IMPORTS-----------------------------------------------------------------------------------------------------------------------------------------
 import sys
 import sqlite3
+import json
 import numpy as np
 from scipy.sparse import csr_matrix as csr
 from scipy.sparse.csgraph import connected_components as components
 from common import *
+from pathlib import Path
 #-------------------------------------------------------------------------------------------------------------------------------------------------
 #-GLOBALS-----------------------------------------------------------------------------------------------------------------------------------------
 
@@ -13,8 +15,17 @@ _indb  = sys.argv[1];
 # THE DATABASE WHERE THE PROCESSED FEATURES ARE WRITTEN TO
 _outdb = sys.argv[2];
 
+# LOADING THE CONFIGS CUSTOM IF AVAILABLE OTHERWISE THE DEFAULT CONFIGS FILE
+IN = None;
+try:
+    IN = open(str((Path(__file__).parent / '../code/').resolve())+'/configs_custom.json');
+except:
+    IN = open(str((Path(__file__).parent / '../code/').resolve())+'/configs.json');
+_configs = json.load(IN);
+IN.close();
+
 # THE TARGET MATCHES TO BE USED AS GOOD (SILVER) IDENTIFIERS
-_id_fields = ['sowiport','crossref','dnb','openalex','econbiz','arxiv','ssoar','research_data','gesis_bib'];
+_id_fields = _configs['targets'];
 #-------------------------------------------------------------------------------------------------------------------------------------------------
 #-SCRIPT------------------------------------------------------------------------------------------------------------------------------------------
 

@@ -1,0 +1,3 @@
+infile=$1;
+
+sqlite3 $infile "CREATE TEMPORARY TABLE underspecified AS SELECT repID AS repID,(a1sur IS NULL AND a2sur IS NULL AND a3sur IS NULL AND a4sur IS NULL) AS surname, (term1 IS NULL AND term2 IS NULL AND term3 IS NULL AND term4 IS NULL) AS term, (year1 IS NULL AND year2 IS NULL) AS year FROM representations; UPDATE representations SET a1sur=repID WHERE repID IN (SELECT repID FROM underspecified WHERE surname=1); UPDATE representations SET term1=repID WHERE repID IN (SELECT repID FROM underspecified WHERE term=1 AND surname=0); UPDATE representations SET year1=repID WHERE repID IN (SELECT repID FROM underspecified WHERE year=1 AND term=0 AND surname=0);";

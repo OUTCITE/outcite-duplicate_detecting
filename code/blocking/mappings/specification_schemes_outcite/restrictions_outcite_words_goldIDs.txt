@@ -1,0 +1,2 @@
+a1sur sowiportID crossrefID dnbID openalexID econbizID arxivID ssoarID research_dataID gesis_bibID
+term1 sowiportID crossrefID dnbID openalexID econbizID arxivID ssoarID research_dataID gesis_bibID

@@ -4,7 +4,9 @@ from copy import deepcopy as copy
 from elasticsearch import Elasticsearch as ES
 import sqlite3
 import time
+import json
 from common import *
+from pathlib import Path
 #-------------------------------------------------------------------------------------------------------------------------------------------------
 #-GLOBALS-----------------------------------------------------------------------------------------------------------------------------------------
 
@@ -13,10 +15,19 @@ _index = sys.argv[1];
 # THE DATABASE TO DOWNLOAD THE FEATURES TO
 _outDB = sys.argv[2];
 
+# LOADING THE CONFIGS CUSTOM IF AVAILABLE OTHERWISE THE DEFAULT CONFIGS FILE
+IN = None;
+try:
+    IN = open(str((Path(__file__).parent / '../code/').resolve())+'/configs_custom.json');
+except:
+    IN = open(str((Path(__file__).parent / '../code/').resolve())+'/configs.json');
+_configs = json.load(IN);
+IN.close();
+
 # PARAMETERS FOR THE BULK UPDATING ELASTICSEARCH PROCESS
-_max_extract_time = 0.5; #minutes
-_max_scroll_tries = 2;
-_scroll_size      = 100;
+_max_extract_time = _configs['max_extract_time']; #minutes
+_max_scroll_tries = _configs['max_scroll_tries'];
+_scroll_size      = _configs['scroll_size'];
 
 # THE PIPELINES TO CONSIDER FOR INDEXING THE CORRESPONDING REFERENCES
 _refobjs = _configs['refobjs'];

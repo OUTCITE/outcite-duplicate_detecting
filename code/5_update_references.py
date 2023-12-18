@@ -36,7 +36,7 @@ _max_scroll_tries =  _configs['max_scroll_tries_references'];
 
 #_featyp, _ngrams_n = _configs['featype'], _configs['ngrams_n']; #words #wordgrams #None #5
 #_similarities, _thresholds = _configs['similarities'], _configs['thresholds']; #jaccard #f1 #overlap #None
-_#XF_type,_FF_type,_FX_type = _configs['XF_type'], _configs['FF_type'], _configs['FX_type'];
+#_XF_type,_FF_type,_FX_type = _configs['XF_type'], _configs['FF_type'], _configs['FX_type'];
 
 # THE PIPELINES TO CONSIDER FOR INDEXING THE CORRESPONDING REFERENCES
 _refobjs = _configs['refobjs'];

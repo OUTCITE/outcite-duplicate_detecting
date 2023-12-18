@@ -19,6 +19,8 @@ import re
 from symspellpy import SymSpell, Verbosity
 import pkg_resources
 from cld3 import get_language as detect
+from pathlib import Path
+from datetime import date
 #-------------------------------------------------------------------------------------------------------------------------------------------------
 #-GLOBALS-----------------------------------------------------------------------------------------------------------------------------------------
 
@@ -26,6 +28,15 @@ from cld3 import get_language as detect
 _indb  = sys.argv[1];
 # THE DATABASE WHERE THE PROCESSED FEATURES ARE WRITTEN TO
 _outdb = sys.argv[2];
+
+# LOADING THE CONFIGS CUSTOM IF AVAILABLE OTHERWISE THE DEFAULT CONFIGS FILE
+IN = None;
+try:
+    IN = open(str((Path(__file__).parent / '../code/').resolve())+'/configs_custom.json');
+except:
+    IN = open(str((Path(__file__).parent / '../code/').resolve())+'/configs.json');
+_configs = json.load(IN);
+IN.close();
 
 #_simple_freqs = 1.0;
 #_dump      = 10000;
@@ -35,16 +46,16 @@ _outdb = sys.argv[2];
 _maxyear = date.today().year + 1;
 
 # PARAMETERS FOR AUTO-CORRECTING POSSIBLE TYPOS
-_dict_edit_dist = 4;
-_ratio          = 0.2;
+_dict_edit_dist = _configs['feat_edit'];
+_ratio          = _configs['feat_ratio'];
 
 # PARAMETERS FOR THE FEATURE EXTRACTION
 # The three cases used are <words,parts> / <word_ngrams,parts> / <char_ngrams,char_ngrams>
-_termfeats       = 'words' #'word_ngrams'; #'words' 'char_grams' 'char_grams_by_word'
-_authfeats       = 'parts' #'parts' 'char_grams'
-_wordsep_authors = True;
-_n_authors       = 5;
-_n_terms         = 5;
+_termfeats       = _configs['feat_terms'] #'word_ngrams'; #'words' 'char_grams' 'char_grams_by_word'
+_authfeats       = _configs['feat_auths'] #'parts' 'char_grams'
+_wordsep_authors = _configs['feat_auth_sep'];
+_n_authors       = _configs['feat_n_auths'];
+_n_terms         = _configs['feat_n_terms'];
 
 # LOADING FREQUENCY DICTIONARIES
 _symspells = dict();
@@ -53,16 +64,16 @@ for code,filename in [('default',"frequency_dictionary_en_82_765.txt",),('de',"d
     _symspells[code].load_dictionary(pkg_resources.resource_filename("symspellpy", filename), term_index=0, count_index=1);
 
 # STOPWORDS TO REMOVE
-_stopwords = set().union(*[set(stopwords.words(lang)) for lang in ['english','german','french','italian','spanish','russian','portuguese','dutch','swedish','danish','finnish']]);
-_tokenizer = RegexpTokenizer(r'\w+')
-_surpres   = set(['de','del','di','de la','von','van','della']);
+_stopwords = set().union(*[set(stopwords.words(lang)) for lang in _configs['feat_langs']]);
+_tokenizer = RegexpTokenizer(_configs['feat_token'])
+_surpres   = set(_configs['feat_surpres']);
 
 # REGEXES FOR DIFFERENT EXTRACTION TASKS
-NONAME    = re.compile(r'(.*anonym\w*)|(.*unknown\w*)|(\s*-\s*)');
-WORD      = re.compile(r'(\b[^\s]+\b)'); #TODO: Make stricter
-STRIP     = re.compile(r'(^(\s|,)+)|((\s|,)+$)');
-PUNCT     = re.compile(r'[!"#$%&\'()*+\/:;<=>?@[\\\]^_`{|}~1-9]'); #Meaningless punctuation for Author name lists, excludes , . -
-SUBTITDIV = re.compile(r'\. |: | -+ |\? ');
+NONAME    = re.compile(_configs['feat_noname']);
+WORD      = re.compile(_configs['feat_word']); #TODO: Make stricter
+STRIP     = re.compile(_configs['feat_strip']);
+PUNCT     = re.compile(_configs['feat_punct']); #Meaningless punctuation for Author name lists, excludes , . -
+SUBTITDIV = re.compile(_configs['feat_subtitdiv']);
 STOPWORDS = re.compile(r'&|\.|\,|'+r'|'.join(['\\b'+stopword+'\\b' for stopword in _stopwords]));
 
 # LEMMATIZER

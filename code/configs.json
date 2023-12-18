@@ -73,12 +73,28 @@
     "min_title_sim":  0.75,
     "min_author_sim": 0.5,
 
+    "feat_edit":      4,
+    "feat_ratio":     0.2,
+    "feat_terms":     "words",
+    "feat_auths":     "parts",
+    "feat_auth_sep":  true,
+    "feat_n_auths":   5,
+    "feat_n_terms":   5,
+    "feat_langs":     ["english","german","french","italian","spanish","russian","portuguese","dutch","swedish","danish","finnish"],
+    "feat_token":     "\\w+",
+    "feat_surpres":   ["de","del","di","de la","von","van","della"],
+    "feat_noname":    "(.*anonym\\w*)|(.*unknown\\w*)|(\\s*-\\s*)",
+    "feat_word":      "(\b[^\\s]+\b)",
+    "feat_strip":     "(^(\\s|,)+)|((\\s|,)+$)",
+    "feat_punct":     "[!\"#$%&\\'()*+\\/:;<=>?@[\\\\\\]^_`{|}~1-9]",
+    "feat_subtitdiv": "\\. |: | -+ |\\? ",
+
     "regex_garbage": "\\W",
     "regex_namesep": "\\W",
     "regex_year":    "1[5-9][0-9]{2}|20(0[0-9]|1[0-9]|2[0-3])",
     "regex_seps":    "[^A-Za-zßäöü]",
     "regex_word":    "[A-Za-zßäöü]{2,}",
-    
+
     "targets": ["ssoar","research_data","econbiz","dnb","gesis_bib","sowiport","crossref","arxiv","openalex"],
     "gesis":   ["ssoar","research_data"],
     
