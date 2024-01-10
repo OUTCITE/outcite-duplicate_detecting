@@ -160,7 +160,7 @@ def get_distinct(field,index):
         aggs[field]["composite"]["after"] = page['aggregations'][field]['after_key'] if returned > 0 else None;
         for bucket in page['aggregations'][field]['buckets']:
             yield bucket['key'][field], bucket['doc_count'];
-            print("# Duplicate cluster label:",bucket['key'][field]," -- count:",bucket['doc_count'],'                  ',end='\r');
+            #print("# Duplicate cluster label:",bucket['key'][field]," -- count:",bucket['doc_count'],'                  ',end='\r');
 
 # ITERATOR OVER ALL DOCUMENTS WHICH HAVE A CERTAIN VALUE IN A CERTAIN FIELD
 def get_by_fieldvalue(field,ID,index):
@@ -362,8 +362,8 @@ def get_clusters(M,refs,index2feat,similarities,thresholds,XF_type,FF_type,FX_ty
             samples[j][-1]['all'] = SIM_all[m1,m2];
         for threshold in thresholds[i]:
             EQUIV           = SIM_all > threshold;
-            if refs[i]['block_id']==238:
-                print(SIM_all)#print(EQUIV.sum(),'equivalent pairs before transitive closure');
+            #if refs[i]['block_id']==238:
+            #    print(SIM_all)#print(EQUIV.sum(),'equivalent pairs before transitive closure');
             n_comps, labels = components(csgraph=EQUIV, directed=False, return_labels=True);
             if len(labels) != len(refs):
                 print('\nERROR: Different number of labels than references:',len(labels),'vs.',len(refs));
@@ -402,7 +402,7 @@ def get_samples(gold_labelling,max_equivs_per_gold_label=1000,max_equivs=10000,m
             break;
     return [[m1,m2,True,dict()] for m1,m2 in equivalents]+[[m1,m2,False,dict()] for m1,m2 in differents];
 
-
+# DELETE
 def get_clusters_(M,refs,featsOf,similarities,thresholds,XF_type,FF_type,FX_type):
     XF,FF,FX         = getFF(M,None) if FF_type=='PROB' else getFF(M,0.5) if FF_type=='PROB_thr' else [None,csr((np.ones(M.shape[1]),(np.arange(M.shape[1]),np.arange(M.shape[1]))),dtype=int),None];
     XF               = XF if XF_type=='PROB' else M;

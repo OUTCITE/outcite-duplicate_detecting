@@ -1,0 +1,14 @@
+/code/DELETE_*.py
+/code/*_delete.py
+/code/*_delete.sh
+/code/__pycache__/
+/code/blocking/report_*.db
+/code/blocking/report_*.png
+/code/blocking/representations_*/
+/logs/
+/*.txt
+/*.db
+/resources/*.db
+/resources/*.txt
+/resources/training/
+/code/configs_custom.json

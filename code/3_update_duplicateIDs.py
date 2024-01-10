@@ -234,7 +234,7 @@ def compare_refobject(P_dict,T_dict,threshold):                       # Two dict
         costs                                                          += [(TP_key,cost_,)                     for cost_                      in costs_      ];
     return TP/P, TP/T, TP, P, T, matches, mismatches, mapping, costs;
 
-# PAIRWISE RULE-BASED DUPLICATE CLASSIFIER
+# PAIRWISE RULE-BASED DUPLICATE CLASSIFIER (QUOTE IN PRINTS FOR TUNING)
 def is_equivalent(ref1,ref2,config): # I think the idea is that I can give config instead of None, but at this point it is not used at all
     #-----------------------------------------------------------------------------------------------------------------------------------------------
     for target_collection in _target_collections:
@@ -246,21 +246,21 @@ def is_equivalent(ref1,ref2,config): # I think the idea is that I can give confi
     refobj_   = {key:ref2[key] if key!='authors' else [{'author_string':[part for part in NAMESEP.split(author['author_string']) if part]} for author in ref2['authors'] if 'author_string' in author and author['author_string']] for key in ref2 if ref2[key] not in [None,'None',' ',''] };
     prec, rec, tp, p, t, matches, mismatches, mapping, costs = compare_refobject(matchobj_,refobj_,_threshold);
     matchprec                                                = sum([min(len(a),len(b)) if key!='_year' else _dateweight for key,a,b in matches])/(sum([min(len(a),len(b)) if key!='_year' else _dateweight for key,a,b in matches])+sum([min(len(a),len(b)) if key!='_year' else _dateweight for key,a,b in mismatches])) if sum([min(len(a),len(b)) if key!='_year' else _dateweight for key,a,b in matches])+sum([min(len(a),len(b)) if key!='_year' else _dateweight for key,a,b in mismatches]) > 0 else 0;
-    if len(matches)+len(mismatches) > 0:
-        print('Matchprec:',matchprec,'Precision:',prec,'Recall:',rec,'\n___________________________________');
-        print('Matches:   ',matches);
-        print('Mismatches:',mismatches,'\n___________________________________');
+    #if len(matches)+len(mismatches) > 0:
+    #    print('Matchprec:',matchprec,'Precision:',prec,'Recall:',rec,'\n___________________________________');
+    #    print('Matches:   ',matches);
+    #    print('Mismatches:',mismatches,'\n___________________________________');
     title1 = ref1['title'][0] if 'title' in ref1 and isinstance(ref1['title'],list) and len(ref1['title'])>0 else '' if 'title' in ref1 and isinstance(ref1['title'],list) else ref1['title'] if 'title' in ref1 else None;
     title2 = ref2['title'][0] if 'title' in ref2 and isinstance(ref2['title'],list) and len(ref2['title'])>0 else '' if 'title' in ref2 and isinstance(ref2['title'],list) else ref2['title'] if 'title' in ref2 else None;
     if title1 and title2 and distance(title1,title2) < _max_title_diff:
         if matchprec >= _thr_prec and len(matches)>1:
-            print('DID MATCH:',matchprec,'>=',_thr_prec,'and #matches =',len(matches));
+            #print('DID MATCH:',matchprec,'>=',_thr_prec,'and #matches =',len(matches));
             return True;
-        print('DID NOT MATCH.');
-    if (not title1) or not title2:
-        print('FAILED:',title1,title2);
-    else:
-        print('distance',distance(title1,title2),'>=',_max_title_diff,'and/or did not match');
+        #print('DID NOT MATCH.');
+    #if (not title1) or not title2:
+    #    print('FAILED:',title1,title2);
+    #else:
+    #    print('distance',distance(title1,title2),'>=',_max_title_diff,'and/or did not match');
     return False;
 
 # DELETE
